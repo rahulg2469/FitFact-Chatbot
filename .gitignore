@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+
+# Environment variables (API KEYS!)
+.env
+
+# Database
+*.db
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Data (optional - uncomment if data files are large)
+# data/
