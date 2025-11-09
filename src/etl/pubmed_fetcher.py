@@ -11,19 +11,18 @@ import requests
 from datetime import datetime
 from dotenv import load_dotenv
 import xml.etree.ElementTree as ET
+import sys
+sys.path.append('database_files')
+from database import FitFactDB
 
-# Load environment variables
 load_dotenv()
 
-# API credentials
 PUBMED_API_KEY = os.getenv('PUBMED_API_KEY')
 PUBMED_EMAIL = os.getenv('PUBMED_EMAIL')
 
-# Base URLs
 ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 EFETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 
-# Fitness topics to search
 SEARCH_TOPICS = [
     "resistance training muscle hypertrophy",
     "cardiovascular exercise fitness",
@@ -33,7 +32,6 @@ SEARCH_TOPICS = [
 ]
 
 def search_pubmed(query, max_results=10):
-    """Search PubMed for papers using XML"""
     print(f"Searching: {query} (max {max_results} papers)...")
     
     params = {
@@ -49,15 +47,10 @@ def search_pubmed(query, max_results=10):
         response = requests.get(ESEARCH_URL, params=params)
         response.raise_for_status()
         
-        # DEBUG: Print first 500 characters of response
-        print(f"  DEBUG: Response preview: {response.text[:500]}")
-        
-        # Parse XML
         root = ET.fromstring(response.content)
         id_list = root.find('.//IdList')
         
         if id_list is None:
-            print(f"  ✗ No IdList found")
             return []
         
         pmids = [id_elem.text for id_elem in id_list.findall('Id')]
@@ -67,13 +60,10 @@ def search_pubmed(query, max_results=10):
         return pmids
         
     except Exception as e:
-        print(f"  ✗ Error searching: {e}")
-        print(f"  Response status: {response.status_code}")
-        print(f"  Response text: {response.text[:1000]}")
+        print(f"  ✗ Error: {e}")
         return []
 
 def fetch_paper_details(pmid):
-    """Fetch detailed information for a paper"""
     params = {
         'db': 'pubmed',
         'id': pmid,
@@ -88,25 +78,20 @@ def fetch_paper_details(pmid):
         response.raise_for_status()
         
         root = ET.fromstring(response.content)
-        
-        # Extract article data
         article = root.find('.//Article')
+        
         if article is None:
             return None
         
-        # Get title
         title_elem = article.find('.//ArticleTitle')
         title = title_elem.text if title_elem is not None else "No title"
         
-        # Get abstract
         abstract_parts = article.findall('.//AbstractText')
-        abstract = " ".join([part.text or "" for part in abstract_parts]) if abstract_parts else "No abstract available"
+        abstract = " ".join([part.text or "" for part in abstract_parts]) if abstract_parts else "No abstract"
         
-        # Get journal
         journal_elem = article.find('.//Journal/Title')
         journal = journal_elem.text if journal_elem is not None else "Unknown journal"
         
-        # Get publication date
         pub_date = article.find('.//Journal/JournalIssue/PubDate')
         year = "Unknown"
         month = "01"
@@ -121,7 +106,6 @@ def fetch_paper_details(pmid):
             month = month_elem.text if month_elem is not None else "01"
             day = day_elem.text if day_elem is not None else "01"
         
-        # Get authors
         authors = []
         author_list = article.findall('.//Author')
         for author in author_list[:3]:
@@ -130,7 +114,6 @@ def fetch_paper_details(pmid):
             if lastname is not None and initials is not None:
                 authors.append(f"{lastname.text} {initials.text}")
         
-        # Get MeSH terms
         mesh_terms = []
         mesh_list = root.findall('.//MeshHeading/DescriptorName')
         for mesh in mesh_list[:5]:
@@ -151,12 +134,10 @@ def fetch_paper_details(pmid):
         time.sleep(0.34)
         return paper_info
         
-    except Exception as e:
-        print(f"  ✗ Error fetching PMID {pmid}: {e}")
+    except:
         return None
 
 def fetch_papers_by_topic(topic, papers_per_topic=10):
-    """Fetch papers for a specific topic"""
     print(f"\n{'='*60}")
     print(f"Topic: {topic}")
     print(f"{'='*60}")
@@ -164,7 +145,7 @@ def fetch_papers_by_topic(topic, papers_per_topic=10):
     pmids = search_pubmed(topic, max_results=papers_per_topic)
     
     if not pmids:
-        print("  No papers found for this topic\n")
+        print("  No papers found\n")
         return []
     
     papers = []
@@ -172,28 +153,53 @@ def fetch_papers_by_topic(topic, papers_per_topic=10):
         print(f"  Fetching paper {i}/{len(pmids)} (PMID: {pmid})...")
         paper = fetch_paper_details(pmid)
         
-        if paper:
+        if paper is not None:
             paper['search_topic'] = topic
             papers.append(paper)
-            print(f"    ✓ {paper['title'][:60]}...")
+            try:
+                print(f"    ✓ {paper['title'][:60]}...")
+            except:
+                print(f"    ✓ Paper fetched")
+        else:
+            print(f"    ✗ Skipped")
     
-    print(f"\n✓ Successfully fetched {len(papers)} papers for this topic\n")
+    print(f"\n✓ Fetched {len(papers)} papers\n")
     return papers
 
 def main():
-    """Main function to fetch papers across all topics"""
     print("\n" + "="*60)
     print("PubMed Research Paper Fetcher")
     print("Elenta Suzan Jacob - Fitness Chatbot Project")
     print("="*60)
     
+    # Connect to database
+    print("\nConnecting to database...")
+    db = FitFactDB()
+    
     all_papers = []
     
     for topic in SEARCH_TOPICS:
         papers = fetch_papers_by_topic(topic, papers_per_topic=10)
+        
+        # Save each paper to database
+        for paper in papers:
+            try:
+                db.save_paper(
+                    pmid=paper['pmid'],
+                    title=paper['title'],
+                    abstract=paper['abstract'],
+                    authors=paper['authors'],
+                    pub_date=paper['publication_date'],
+                    journal=paper['journal'],
+                    study_type='Research Article'
+                )
+            except Exception as e:
+                print(f"  ✗ Error saving {paper['pmid']}: {e}")
+        
         all_papers.extend(papers)
-        print(f"Progress: {len(all_papers)} total papers fetched so far\n")
+        print(f"Progress: {len(all_papers)} total papers fetched and saved\n")
     
+    # Also save to JSON as backup
     output_file = "data/pubmed_papers.json"
     os.makedirs("data", exist_ok=True)
     
@@ -201,23 +207,13 @@ def main():
         json.dump(all_papers, f, indent=2, ensure_ascii=False)
     
     print("\n" + "="*60)
-    print("FETCH COMPLETE!")
+    print("COMPLETE!")
     print("="*60)
-    print(f"✓ Total papers fetched: {len(all_papers)}")
-    print(f"✓ Topics covered: {len(SEARCH_TOPICS)}")
-    print(f"✓ Saved to: {output_file}")
-    
-    if os.path.exists(output_file):
-        print(f"✓ File size: {os.path.getsize(output_file) / 1024:.2f} KB")
-    
+    print(f"✓ Total papers: {len(all_papers)}")
+    print(f"✓ Saved to database AND {output_file}")
     print("="*60)
     
-    if all_papers:
-        print("\n📄 Sample Paper:")
-        print(f"Title: {all_papers[0]['title']}")
-        print(f"Journal: {all_papers[0]['journal']}")
-        print(f"Date: {all_papers[0]['publication_date']}")
-        print(f"PMID: {all_papers[0]['pmid']}")
+    db.close()
 
 if __name__ == "__main__":
     main()
