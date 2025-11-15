@@ -1,6 +1,6 @@
 """
 Query Processor - Integrates PubMed → Database → Claude Pipeline
-Elenta Suzan Jacob - Week 3
+Week 3
 Complete with error handling and rate limiting
 """
 
