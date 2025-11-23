@@ -25,4 +25,7 @@ Thumbs.db
 logs/
 
 # Data (optional - uncomment if data files are large)
-# data/
+# data/temp_scripts/
+fetched_papers.json
+temp_scripts/
+fetched_papers.json

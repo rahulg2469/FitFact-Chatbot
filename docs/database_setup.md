@@ -47,16 +47,6 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO fitfact_user;
 \q
 ```
 
-5. **Create Environment File**
-Create `.env` in project root (do not commit):
-```
-DB_NAME=fitfact_db
-DB_USER=fitfact_user
-DB_PASSWORD=fitfact2024
-DB_HOST=localhost
-DB_PORT=5432
-```
-
 ### Verification
 ```bash
 psql -U fitfact_user -d fitfact_db -h localhost
