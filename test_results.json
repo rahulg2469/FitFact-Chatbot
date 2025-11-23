@@ -1,0 +1,140 @@
+[
+  {
+    "question": "What are the benefits of creatine for muscle growth?",
+    "status": "SUCCESS",
+    "response_time": 10.015101909637451,
+    "response_length": 2601
+  },
+  {
+    "question": "Is creatine safe for long-term use?",
+    "status": "SUCCESS",
+    "response_time": 10.324540138244629,
+    "response_length": 2184
+  },
+  {
+    "question": "How much creatine should I take daily?",
+    "status": "SUCCESS",
+    "response_time": 8.917150020599365,
+    "response_length": 2386
+  },
+  {
+    "question": "How much protein do I need to build muscle?",
+    "status": "SUCCESS",
+    "response_time": 9.428563117980957,
+    "response_length": 2491
+  },
+  {
+    "question": "Is whey protein better than plant protein?",
+    "status": "SUCCESS",
+    "response_time": 8.290507078170776,
+    "response_length": 2468
+  },
+  {
+    "question": "When should I consume protein after workout?",
+    "status": "SUCCESS",
+    "response_time": 8.345128536224365,
+    "response_length": 2375
+  },
+  {
+    "question": "How often should I train each muscle group?",
+    "status": "SUCCESS",
+    "response_time": 7.611551523208618,
+    "response_length": 2354
+  },
+  {
+    "question": "What's better for hypertrophy: high reps or heavy weight?",
+    "status": "SUCCESS",
+    "response_time": 9.723930597305298,
+    "response_length": 2403
+  },
+  {
+    "question": "How long should rest periods be between sets?",
+    "status": "SUCCESS",
+    "response_time": 6.559231758117676,
+    "response_length": 1736
+  },
+  {
+    "question": "Is HIIT better than steady-state cardio?",
+    "status": "SUCCESS",
+    "response_time": 8.467175006866455,
+    "response_length": 2002
+  },
+  {
+    "question": "How does cardio affect muscle growth?",
+    "status": "SUCCESS",
+    "response_time": 8.421202659606934,
+    "response_length": 2287
+  },
+  {
+    "question": "What's the best cardio for fat loss?",
+    "status": "SUCCESS",
+    "response_time": 7.371500492095947,
+    "response_length": 1847
+  },
+  {
+    "question": "How important is sleep for muscle recovery?",
+    "status": "SUCCESS",
+    "response_time": 9.977997064590454,
+    "response_length": 2349
+  },
+  {
+    "question": "What should I eat after a workout?",
+    "status": "SUCCESS",
+    "response_time": 8.895720958709717,
+    "response_length": 2471
+  },
+  {
+    "question": "How long should I rest between workouts?",
+    "status": "SUCCESS",
+    "response_time": 9.239684104919434,
+    "response_length": 1958
+  },
+  {
+    "question": "Do I need supplements to build muscle?",
+    "status": "SUCCESS",
+    "response_time": 9.701652526855469,
+    "response_length": 2622
+  },
+  {
+    "question": "What are the best supplements for beginners?",
+    "status": "SUCCESS",
+    "response_time": 9.362381219863892,
+    "response_length": 1833
+  },
+  {
+    "question": "Should beginners do full body or split workouts?",
+    "status": "SUCCESS",
+    "response_time": 8.549361944198608,
+    "response_length": 1885
+  },
+  {
+    "question": "How long does it take to see muscle growth?",
+    "status": "SUCCESS",
+    "response_time": 8.209677934646606,
+    "response_length": 2301
+  },
+  {
+    "question": "Can I build muscle and lose fat at the same time?",
+    "status": "SUCCESS",
+    "response_time": 9.228010654449463,
+    "response_length": 2426
+  },
+  {
+    "question": "What is the best exercise?",
+    "status": "SUCCESS",
+    "response_time": 9.241196632385254,
+    "response_length": 2539
+  },
+  {
+    "question": "Tell me about fitness",
+    "status": "SUCCESS",
+    "response_time": 7.970306158065796,
+    "response_length": 2052
+  },
+  {
+    "question": "Should I eat pizza before gym?",
+    "status": "SUCCESS",
+    "response_time": 9.240859985351562,
+    "response_length": 1942
+  }
+]
