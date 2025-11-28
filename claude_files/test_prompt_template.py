@@ -1,7 +1,7 @@
 import anthropic
 import os
 from dotenv import load_dotenv
-from claude_files.prompt_template import create_fitness_prompt
+from prompt_template import create_fitness_prompt
 
 # Load environment variables
 load_dotenv()
@@ -92,5 +92,5 @@ except Exception as e:
     print(f"❌ Error: {e}")
 
 print("\n" + "=" * 80)
-print("Phase 1 Deliverable Complete: Initial Prompt Template Tested Successfully")
+print("Initial Prompt Template Tested Successfully")
 print("=" * 80)
