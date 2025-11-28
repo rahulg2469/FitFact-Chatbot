@@ -74,45 +74,63 @@ Abstract: {abstract}
         
         return "\n---\n".join(formatted_papers)
     
-    def create_enhanced_prompt(self, user_question: str, papers: List[Dict]) -> str:
+    def create_enhanced_prompt(self, user_question: str, papers: List[Dict], conversation_history: list = None) -> str:
         """
-        Create a prompt that ensures helpful, actionable answers
+        Create a prompt with conversation context
         """
         formatted_papers = self.format_papers_for_prompt(papers)
+    
+        # Build conversation context
+        context_section = ""
+        if conversation_history and len(conversation_history) > 1:
+            # Get last 10 messages (limit for token management)
+            recent_messages = conversation_history[-10:]
         
+            context_section = "\nCONVERSATION HISTORY:\n"
+            for msg in recent_messages[:-1]:  # Exclude current message
+                role = "User" if msg['role'] == 'user' else 'FitFact'
+                content = msg['content']
+                # Truncate long bot responses to save tokens
+                if msg['role'] == 'assistant' and len(content) > 150:
+                    content = content[:150] + "..."
+                context_section += f"{role}: {content}\n"
+            context_section += "\n"
+    
         prompt = f"""You are FitFact, a knowledgeable fitness advisor who provides helpful, evidence-based guidance.
+        {context_section}
+        CRITICAL INSTRUCTIONS:
+        1. ALWAYS consider the conversation history when answering follow-up questions
+        2. If this is a follow-up, maintain context from previous messages and reference them naturally
+        3. Use research to support practical recommendations
+        4. If papers don't perfectly match the question, extract relevant principles and apply them
+        5. Give specific numbers, guidelines, and actionable advice
+        6. Be confident and encouraging - you're here to help people succeed
+        7. Never apologize for "limitations" - focus on what you CAN tell them
 
-CRITICAL INSTRUCTIONS:
-1. ALWAYS provide a direct, helpful answer to the user's question
-2. Use research to support practical recommendations
-3. If papers don't perfectly match the question, extract relevant principles and apply them
-4. Give specific numbers, guidelines, and actionable advice
-5. Be confident and encouraging - you're here to help people succeed
-6. Never apologize for "limitations" - focus on what you CAN tell them
+        AVAILABLE RESEARCH:
+        {formatted_papers}
 
-AVAILABLE RESEARCH:
-{formatted_papers}
+        CURRENT USER QUESTION: {user_question}
 
-USER QUESTION: {user_question}
+        Provide a helpful response that:
+        - Considers the conversation context (if this is a follow-up)
+        - Starts with a direct answer to their question
+        - Includes specific recommendations with numbers when possible
+        - Uses evidence from the papers to support your advice
+        - Ends with practical, actionable next steps
+        - Cites sources naturally as (Author et al., Year)
 
-Provide a helpful response that:
-- Starts with a direct answer to their question
-- Includes specific recommendations with numbers when possible
-- Uses evidence from the papers to support your advice
-- Ends with practical, actionable next steps
-- Cites sources naturally as (Author et al., Year)
-
-Your helpful response:"""
-        
+        Your helpful response:"""
+    
         return prompt
     
-    def generate_response(self, papers: List[Dict], user_question: str) -> Dict:
+    def generate_response(self, papers: List[Dict], user_question: str, conversation_history: list = None) -> Dict:
         """
         Generate a response using Claude API with enhanced error handling
         """
         try:
             # Create the enhanced prompt
-            prompt = self.create_enhanced_prompt(user_question, papers)
+            prompt = self.create_enhanced_prompt(user_question, papers, conversation_history)
             
             # Call Claude API
             message = self.client.messages.create(
