@@ -1,6 +1,4 @@
 -- FitFact Database Schema
--- Created: Week 1 - Database Foundation
--- Purpose: Core tables for fitness Q&A chatbot with caching
 
 -- 1. Research Papers Table
 CREATE TABLE research_papers (

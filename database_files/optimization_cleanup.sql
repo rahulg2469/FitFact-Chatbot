@@ -1,6 +1,4 @@
 -- Database Optimization & Cleanup Scripts for FitFact
--- Week 3 - Maintenance and Performance
--- Author: Satya Harish
 
 -- ============================================
 -- 1. Automated Cleanup Procedures

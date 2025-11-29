@@ -1,6 +1,4 @@
 -- FitFact Database Functions
--- Created: Week 1 - Database Foundation
--- Purpose: Helper functions for cache management
 
 -- Full-text search trigger
 CREATE OR REPLACE FUNCTION papers_search_trigger() RETURNS trigger AS $$

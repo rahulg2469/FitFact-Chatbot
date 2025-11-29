@@ -1,6 +1,4 @@
 -- Cache Hit Rate Analytics for FitFact
--- Week 3 - Advanced Cache Analysis
--- Author: Satya Harish
 
 -- ============================================
 -- 1. Cache Effectiveness Dashboard

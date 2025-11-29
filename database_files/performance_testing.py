@@ -1,7 +1,5 @@
 """
 FitFact Database Performance Testing
-Week 4 - Simplified Performance Metrics
-Author: Satya Harish
 """
 
 import psycopg2
@@ -24,11 +22,11 @@ class PerformanceTester:
             port=os.getenv('DB_PORT')
         )
         self.cursor = self.conn.cursor(cursor_factory=RealDictCursor)
-        print("✅ Connected to FitFact database")
+        print(" Connected to FitFact database")
     
     def test_current_performance(self):
         """Test actual current database performance"""
-        print("\n🔬 TESTING CURRENT DATABASE PERFORMANCE\n")
+        print("\n TESTING CURRENT DATABASE PERFORMANCE\n")
         print("=" * 60)
         
         results = {}
@@ -124,7 +122,7 @@ class PerformanceTester:
 ║                  {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}                      ║
 ╚══════════════════════════════════════════════════════════════╝
 
-📊 PERFORMANCE METRICS
+ PERFORMANCE METRICS
 {"="*60}
 
 """
@@ -136,7 +134,7 @@ class PerformanceTester:
             report += f"   Max:       {metrics['max_ms']:.2f}ms\n\n"
         
         report += f"""
-🏆 PERFORMANCE GRADES
+ PERFORMANCE GRADES
 {"="*60}
 
 """
@@ -156,7 +154,7 @@ class PerformanceTester:
         
         report += f"""
 
-💾 DATABASE HEALTH
+ DATABASE HEALTH
 {"="*60}
 
 """
@@ -168,7 +166,7 @@ class PerformanceTester:
             f.write(report)
         
         print(report)
-        print("✅ Report saved to database_files/performance_report.txt")
+        print(" Report saved to database_files/performance_report.txt")
     
     def close(self):
         self.conn.close()
