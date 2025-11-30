@@ -1,8 +1,6 @@
 """
 FitFact - Research-Backed Fitness Q&A Chatbot
 Production-grade Streamlit interface with PubMed Query Optimizer
-Author: Satya (completing Rahul's Week 3 tasks)
-Enhanced by: Rahul (conversation memory, UI improvements)
 """
 
 import streamlit as st
@@ -11,6 +9,7 @@ from datetime import datetime
 import sys
 import os
 import base64
+from pathlib import Path
 
 # Add paths for imports
 sys.path.append('..')  # Parent directory
@@ -24,7 +23,6 @@ from keyword_extractor import FitnessKeywordExtractor
 from pubmed_query_optimizer import PubMedQueryOptimizer
 from src.etl.pubmed_fetcher import search_pubmed, fetch_paper_details
 from dotenv import load_dotenv
-from pathlib import Path
 
 load_dotenv()
 
@@ -33,6 +31,10 @@ load_dotenv()
 script_dir = os.path.dirname(os.path.abspath(__file__))  # Get full path to interface folder
 parent_dir = os.path.dirname(script_dir)  # Go up to FitFact-Chatbot
 logo_path = os.path.join(parent_dir, "assets", "fitfact_logo.jpg")
+BG_PATH = os.path.join(parent_dir, "assets", "gym_bg.jpg")
+
+def get_base64_image(path: str) -> str:
+    return base64.b64encode(Path(path).read_bytes()).decode()
 
 print(f"🔍 Script directory: {script_dir}")
 print(f"📁 Parent directory: {parent_dir}")
@@ -48,109 +50,147 @@ st.set_page_config(
 )
 
 
-# Custom CSS for professional styling with DARK THEME
-st.markdown("""
+bg_base64 = get_base64_image(BG_PATH)
+
+st.markdown(f"""
 <style>
-    /* Dark theme background */
-    .stApp {
-        background-color: #121212;
-    }
-    
-    .main {
-        padding: 0rem 1rem;
-        background-color: #121212;
-    }
-    
-    /* Adjust sidebar for dark theme */
-    [data-testid="stSidebar"] {
-        background-color: #1a1a1a;
-    }
-    
-    .main-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
-        border-radius: 10px;
-        margin-bottom: 2rem;
-        color: white;
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    
-    .user-message {
-        background-color: #E8F4FD;
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 1rem 0;
-        border-left: 4px solid #2196F3;
-    }
-    
-    .assistant-message {
-        background-color: #F3E5F5;
-        padding: 1rem;
-        border-radius: 10px;
-        margin: 1rem 0;
-        border-left: 4px solid #9C27B0;
-    }
-    
-    .citation {
-        color: #1976D2;
-        text-decoration: none;
-        font-weight: 500;
-    }
-    
-    .citation:hover {
-        text-decoration: underline;
-    }
-    
-    .metric-card {
-        background: white;
-        padding: 1rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        text-align: center;
-    }
-    
-    .stSpinner > div {
-        border-color: #667eea !important;
-    }
-    
-    .success-message {
-        background-color: #E8F5E9;
-        color: #2E7D32;
-        padding: 1rem;
-        border-radius: 8px;
-        border-left: 4px solid #4CAF50;
-    }
-    
-    .error-message {
-        background-color: #FFEBEE;
-        color: #C62828;
-        padding: 1rem;
-        border-radius: 8px;
-        border-left: 4px solid #F44336;
-    }
-    
-    /* Quick question card styling - COMPACT */
-    div[data-testid="column"] button {
-        background: linear-gradient(135deg, rgba(20, 30, 50, 0.8) 0%, rgba(30, 40, 60, 0.6) 100%) !important;
-        border: 2px solid rgba(0, 150, 255, 0.3) !important;
-        border-radius: 15px !important;
-        padding: 1rem 0.5rem !important;
-        height: 110px !important;
-        color: white !important;
-        font-weight: 600 !important;
-        font-size: 0.85rem !important;
-        transition: all 0.3s ease !important;
-        box-shadow: 0 4px 15px rgba(0, 100, 255, 0.2) !important;
-    }
-    
-    div[data-testid="column"] button:hover {
-        border-color: rgba(0, 200, 255, 0.8) !important;
-        box-shadow: 0 6px 25px rgba(0, 150, 255, 0.4) !important;
-        transform: translateY(-5px) !important;
-    }
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+/* Apply Poppins to specific elements only, not headings */
+body, p, div, span, button, input, textarea, select {{
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}}
+
+/* Custom loading animation */
+@keyframes rotate {{
+    0% {{ transform: rotate(0deg); }}
+    100% {{ transform: rotate(360deg); }}
+}}
+
+.loading-container {{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1rem;
+    margin: 1rem auto 3rem auto;
+    max-width: 600px;
+    background: rgba(30, 40, 55, 0.6);
+    border-radius: 15px;
+    border: 1px solid rgba(100, 120, 150, 0.3);
+}}
+
+.loading-icon {{
+    font-size: 1rem;
+    animation: rotate 2s linear infinite;
+}}
+
+.loading-text {{
+    color: #ffffff;
+    font-size: 1.1rem;
+    font-weight: 500;
+}}
+
+/* Full gym background throughout */
+.stApp {{
+    background-color: #000;
+    background-image: 
+        linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)),
+        url("data:image/jpg;base64,{bg_base64}");
+    background-position: center top;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-size: cover;
+}}
+
+.main {{
+    padding: 0rem 1rem 3rem 1rem;
+    background: transparent;
+}}
+
+[data-testid="stSidebar"] {{
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-right: 1px solid rgba(100, 120, 150, 0.2);
+}}
+
+.stChatInput {{
+    background-color: rgba(15, 20, 30, 0.9) !important;
+}}
+
+.metric-card {{
+    background: rgba(15, 20, 30, 0.9);
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    text-align: center;
+    border: 1px solid rgba(100, 120, 150, 0.2);
+}}
+
+[data-testid="stExpander"] {{
+    background-color: rgba(40, 50, 70, 0.3);
+    border: 1px solid rgba(100, 120, 150, 0.2);
+    border-radius: 8px;
+}}
+
+[data-testid="stMetricValue"] {{
+    color: #ffffff;
+}}
+
+[data-testid="stMetricLabel"] {{
+    color: #b0c4de;
+}}
+
+/* Prevent footer overlap */
+.main > div:last-child {{
+    position: relative;
+    z-index: 10;
+    margin-top: 3rem;
+}}
+
+/* Completely remove Streamlit's keyboard helper overlay */
+div[data-testid="stBottomBlock"],
+div[data-testid="stKeyboard"],
+span[class*="key_"],
+span[class*="cursor"] {{
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+}}
+
+/* Hide stray debug text elements */
+.main p:empty,
+.main div:has(> p:only-child:empty) {{
+    display: none !important;
+}}
+
+/* Hide specific Streamlit debug/accessibility text */
+.main p:only-child,
+[class*="cursor"],
+[class*="key_"] {{
+    color: transparent !important;
+    font-size: 0 !important;
+    line-height: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+}}
+
+/* Hide any small text near the bottom */
+.main > div:last-of-type p:not(:has(a)) {{
+    display: none !important;
+}}
+
+.stMarkdown p:only-child:not(:has(a)):not(:has(strong)):not(:has(em)) {{
+    display: none !important;
+}}
 </style>
 """, unsafe_allow_html=True)
+
 
 # Initialize session state
 if 'messages' not in st.session_state:
@@ -380,61 +420,163 @@ class FitFactPipeline:
         
         return paper_ids
 
-# Header with logo - NO BLUE LINES VERSION
+# Simple Title with Logo - White FITFACT title
 if os.path.exists(logo_path):
     with open(logo_path, "rb") as f:
         img_data = base64.b64encode(f.read()).decode()
     
     st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 25%, #16213e 50%, #1a1a2e 75%, #0a0a0a 100%); padding: 1.5rem 2rem; border-radius: 10px; margin-bottom: 1.5rem; text-align: center; box-shadow: 0 8px 32px rgba(0, 100, 255, 0.3), 0 0 60px rgba(0, 150, 255, 0.2) inset; border: 1px solid rgba(0, 150, 255, 0.2); position: relative; overflow: hidden;">
-        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 70%; height: 70%; background: radial-gradient(ellipse at center, rgba(0, 150, 255, 0.15) 0%, transparent 70%); filter: blur(50px); pointer-events: none;"></div>
-        <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 0.5rem; position: relative; z-index: 1;">
-            <img src="data:image/jpeg;base64,{img_data}" width="100" style="border-radius: 10px;">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Orbitron:wght@900&family=Righteous&family=Russo+One&display=swap" rel="stylesheet">
+    <div style="width: 100%; margin: 2rem 0 1.5rem 0;">
+        <div style="display: flex; justify-content: center;">
+            <img src="data:image/jpeg;base64,{img_data}" width="90" style="border-radius: 50%; margin-bottom: 1rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5); border: 3px solid rgba(100, 120, 150, 0.3); margin-left: -60px;">
         </div>
-        <h1 style="margin: 0.3rem 0 0 0; font-size: 2rem; text-align: center; color: #ffffff; text-shadow: 0 0 20px rgba(0, 150, 255, 0.8), 2px 2px 4px rgba(0,0,0,0.8); font-weight: bold; position: relative; z-index: 1;">FitFact</h1>
-        <p style="margin: 0.3rem 0 0 0; font-size: 0.95rem; text-align: center; color: #e0e8ff; text-shadow: 0 0 10px rgba(0, 150, 255, 0.5), 1px 1px 2px rgba(0,0,0,0.6); position: relative; z-index: 1;">Evidence-Based Fitness Advice from Peer-Reviewed Research</p>
+        <h1 style="
+            color: #ffffff; 
+            font-size: 3rem; 
+            font-weight: 900; 
+            margin: 0; 
+            letter-spacing: 3px;
+            font-family: 'Orbitron', 'Bebas Neue', sans-serif !important;
+            text-transform: uppercase;
+            text-align: center;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        ">
+            FITFACT
+        </h1>
+        <p style="color: #b0c4de; font-size: 1.1rem; margin: 0.8rem 0 0 0; opacity: 0.95; letter-spacing: 0.5px; font-family: 'Poppins', sans-serif; text-align: center; font-weight: 600;">
+            Evidence-Based Fitness Advice from Peer-Reviewed Research
+        </p>
     </div>
     """, unsafe_allow_html=True)
 else:
     st.markdown("""
-    <div style="background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 25%, #16213e 50%, #1a1a2e 75%, #0a0a0a 100%); padding: 1.5rem 2rem; border-radius: 10px; margin-bottom: 1.5rem; text-align: center; box-shadow: 0 8px 32px rgba(0, 100, 255, 0.3), 0 0 60px rgba(0, 150, 255, 0.2) inset; border: 1px solid rgba(0, 150, 255, 0.2);">
-        <div style="font-size: 2rem; margin-bottom: 0.5rem;">💪</div>
-        <h1 style="margin: 0.3rem 0 0 0; font-size: 2rem; color: #ffffff; text-shadow: 0 0 20px rgba(0, 150, 255, 0.8), 2px 2px 4px rgba(0,0,0,0.8); font-weight: bold;">FitFact</h1>
-        <p style="margin: 0.3rem 0 0 0; font-size: 0.95rem; color: #e0e8ff; text-shadow: 0 0 10px rgba(0, 150, 255, 0.5), 1px 1px 2px rgba(0,0,0,0.6);">Evidence-Based Fitness Advice from Peer-Reviewed Research</p>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Orbitron:wght@900&family=Righteous&family=Russo+One&display=swap" rel="stylesheet">
+    <div style="width: 100%; margin: 2rem 0 1.5rem 0;">
+        <div style="text-align: center;">
+            <div style="font-size: 3rem; margin-bottom: 0.8rem;">💪</div>
+        </div>
+        <h1 style="
+            color: #ffffff; 
+            font-size: 3rem; 
+            font-weight: 900; 
+            margin: 0; 
+            letter-spacing: 3px;
+            font-family: 'Orbitron', 'Bebas Neue', sans-serif !important;
+            text-transform: uppercase;
+            text-align: center;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        ">
+            FITFACT
+        </h1>
+        <p style="color: #b0c4de; font-size: 1.1rem; margin: 0.8rem 0 0 0; opacity: 0.95; letter-spacing: 0.5px; font-family: 'Poppins', sans-serif; text-align: center; font-weight: 600;">
+            Evidence-Based Fitness Advice from Peer-Reviewed Research
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
-# Quick Questions as horizontal cards in center (COMPACT VERSION)
+# Feature Cards Section - Clickable Cards (No separate button)
 if len(st.session_state.messages) == 0:
     st.markdown("""
-    <div style="margin: 1rem 0 0.5rem 0;">
-        <h3 style="text-align: center; color: #ffffff; font-size: 1.2rem; margin-bottom: 1rem; text-shadow: 0 0 15px rgba(0, 180, 255, 0.6); font-weight: bold;">
-            🎯 Quick Start Questions
+    <div style="margin: 1.5rem 0 1rem 0;">
+        <h3 style="text-align: center; color: #ffffff; font-size: 1.2rem; margin-bottom: 1.5rem; font-weight: bold;">
+            ⚡︎ ⚡︎ Quick Start Questions
         </h3>
     </div>
     """, unsafe_allow_html=True)
 
+    # All 5 cards in one row
     cols = st.columns(5)
-
-    quick_questions_data = [
-        ("💪", "Workout\nFrequency", "How many times a week should I work out?"),
-        ("🥩", "Protein\nIntake", "What's the ideal protein intake for muscle gain?"),
-        ("🔥", "HIIT vs\nCardio", "Is HIIT better than steady cardio for fat loss?"),
-        ("🧘", "Recovery\nMethods", "Best recovery methods after training?"),
-        ("💎", "Muscle\n& Cutting", "Can I build muscle while cutting?")
+    
+    feature_cards = [
+        {
+            "icon": "⏲",
+            "title": "Workout Frequency",
+            "description": "How many times a week should I work out?",
+            "question": "How many times a week should I work out?"
+        },
+        {
+            "icon": "🍽️",
+            "title": "Protein Intake",
+            "description": "What's the ideal protein intake for muscle gain?",
+            "question": "What's the ideal protein intake for muscle gain?"
+        },
+        {
+            "icon": "♨",
+            "title": "HIIT vs Cardio",
+            "description": "Is HIIT better than steady cardio for fat loss?",
+            "question": "Is HIIT better than steady cardio for fat loss?"
+        },
+        {
+            "icon": "⟳",
+            "title": "Recovery Methods",
+            "description": "Best recovery methods after training?",
+            "question": "Best recovery methods after training?"
+        },
+        {
+            "icon": "🦾",
+            "title": "Muscle & Cutting",
+            "description": "Can I build muscle while cutting?",
+            "question": "Can I build muscle while cutting?"
+        }
     ]
 
-    for idx, (col, (emoji, title, question)) in enumerate(zip(cols, quick_questions_data)):
+    for idx, (col, card) in enumerate(zip(cols, feature_cards)):
         with col:
+            # Create button that looks like a card
             if st.button(
-                f"{emoji}\n\n{title}",
-                key=f"quick_center_{idx}",
+                f"{card['icon']}\n\n{card['title']}\n\n{card['description']}",
+                key=f"feature_{idx}",
                 use_container_width=True
             ):
-                st.session_state.pending_question = question
+                st.session_state.pending_question = card['question']
                 st.rerun()
 
-    st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
+    # Add styling CSS for clickable cards
+    st.markdown("""
+    <style>
+    /* Feature card styling - entire card is clickable */
+    div[data-testid="column"] button[kind="primary"] {
+        background: linear-gradient(135deg, rgba(20, 30, 50, 0.95) 0%, rgba(30, 40, 60, 0.8) 100%) !important;
+        border: 2px solid rgba(100, 120, 150, 0.4) !important;
+        border-radius: 15px !important;
+        padding: 1.5rem 1rem !important;
+        min-height: 180px !important;
+        color: white !important;
+        font-weight: 600 !important;
+        font-size: 0.85rem !important;
+        line-height: 1.5 !important;
+        white-space: pre-line !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+        cursor: pointer !important;
+        font-family: 'Poppins', sans-serif !important;
+    }
+    
+    /* Target all elements inside buttons with maximum specificity */
+    button[kind="primary"] *,
+    button[kind="primary"]::before,
+    button[kind="primary"]::after,
+    div[data-testid="column"] button *,
+    div[data-testid="column"] button p,
+    div[data-testid="column"] button div,
+    div[data-testid="column"] button span,
+    .stButton button *,
+    .stButton button {
+        font-family: 'Poppins', sans-serif !important;
+    }
+    
+    /* Hover effect for cards */
+    div[data-testid="column"] button[kind="primary"]:hover {
+        transform: translateY(-8px) scale(1.03) !important;
+        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.5) !important;
+        border-color: rgba(150, 170, 200, 0.6) !important;
+        background: linear-gradient(135deg, rgba(30, 40, 60, 1) 0%, rgba(40, 50, 70, 0.95) 100%) !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<div style='margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
 
 # Sidebar
 with st.sidebar:
@@ -522,24 +664,53 @@ if 'pending_question' in st.session_state and st.session_state.pending_question:
                 "content": "Failed to initialize the system. Please check your database connection."
             })
         else:
-            result = st.session_state.pipeline.process_query(prompt, st.session_state.messages[:-1])
-            
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": result['response'],
-                "metrics": result.get('metrics', {})
-            })
+            try:
+                result = st.session_state.pipeline.process_query(prompt, st.session_state.messages[:-1])
+                
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": result['response'],
+                    "metrics": result.get('metrics', {})
+                })
+            except Exception as e:
+                print(f"❌ Error processing query: {e}")
+                # Reinitialize pipeline on error
+                st.session_state.pipeline = None
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": "I encountered a database error. Please try asking your question again."
+                })
     
     st.rerun()
 
-# Display all existing messages FIRST
+# Display all existing messages with custom alignment
 chat_container = st.container()
 
 with chat_container:
     for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+        role = message["role"]
+        content = message["content"]
+        
+        if role == "user":
+            # User message on the RIGHT with darker sky blue background
+            st.markdown(f"""
+            <div style="display: flex; justify-content: flex-end; margin: 1rem 0;">
+                <div style="background-color: rgba(70, 130, 180, 0.85); border-radius: 15px; border-right: 3px solid #87CEEB; padding: 1rem; max-width: 70%; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">
+                    <div style="color: white; font-size: 0.95rem; line-height: 1.6; font-family: 'Poppins', sans-serif; font-weight: 400;">{content}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            # Assistant message on the LEFT
+            st.markdown(f"""
+            <div style="display: flex; justify-content: flex-start; margin: 1rem 0;">
+                <div style="background-color: rgba(30, 40, 55, 0.85); border-radius: 15px; border-left: 3px solid #8b9dc3; padding: 1rem; max-width: 70%; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);">
+                    <div style="color: white; font-size: 0.95rem; line-height: 1.6; font-family: 'Poppins', sans-serif; font-weight: 400;">{content}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
+            # Show metrics if available
             if "metrics" in message:
                 with st.expander("📈 Query Metrics", expanded=False):
                     metrics = message["metrics"]
@@ -567,49 +738,79 @@ with chat_container:
 
 # Handle new chat input
 if prompt := st.chat_input("Ask me anything about fitness, nutrition, or training..."):
+    # Add user message immediately
     st.session_state.messages.append({"role": "user", "content": prompt})
     st.session_state.total_queries += 1
     
-    # Show just the new user message
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    # Force rerun to display the user message
+    st.rerun()
+
+# Process the last message if it hasn't been processed yet
+if (st.session_state.messages and 
+    st.session_state.messages[-1]["role"] == "user" and 
+    len(st.session_state.messages) > 0):
     
-    # Process WITHOUT showing previous messages dimmed
-    is_casual, casual_text = is_casual_message(prompt)
+    # Check if this is the last message and if we need to process it
+    # (i.e., there's no assistant response after it)
+    needs_processing = True
+    if len(st.session_state.messages) >= 2:
+        if st.session_state.messages[-1]["role"] == "assistant":
+            needs_processing = False
     
-    if is_casual:
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": casual_text
-        })
-        st.rerun()
-    else:
-        if st.session_state.pipeline is None:
-            with st.spinner("Initializing FitFact system..."):
-                st.session_state.pipeline = init_pipeline()
+    if needs_processing and len(st.session_state.messages) > 0:
+        last_user_message = st.session_state.messages[-1]["content"]
         
-        if st.session_state.pipeline is None:
+        # Check if it's a casual message
+        is_casual, casual_text = is_casual_message(last_user_message)
+        
+        if is_casual:
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": "Failed to initialize the system. Please check your database connection."
+                "content": casual_text
             })
             st.rerun()
         else:
-            # Create empty placeholder for response
-            response_placeholder = st.empty()
+            if st.session_state.pipeline is None:
+                loading_placeholder = st.empty()
+                loading_placeholder.markdown("""
+                <div class="loading-container" id="loading-init">
+                    <div class="loading-icon">❚█══█❚</div>
+                    <div class="loading-text">Initializing FitFact system...</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.session_state.pipeline = init_pipeline()
+                loading_placeholder.empty()
             
-            # Show spinner in the placeholder
-            with response_placeholder:
-                with st.spinner("🔬 Analyzing your question and searching research papers..."):
-                    result = st.session_state.pipeline.process_query(prompt, st.session_state.messages[:-1])
-            
-            # Store and rerun to display cleanly
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": result['response'],
-                "metrics": result.get('metrics', {})
-            })
-            st.rerun()
+            if st.session_state.pipeline is None:
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": "Failed to initialize the system. Please check your database connection."
+                })
+                st.rerun()
+            else:
+                loading_placeholder = st.empty()
+                loading_placeholder.markdown("""
+                <div class="loading-container" id="loading-query">
+                    <div class="loading-icon">❚█══█❚</div>
+                    <div class="loading-text">Analyzing your question and searching research papers...</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                result = st.session_state.pipeline.process_query(
+                    last_user_message, 
+                    st.session_state.messages[:-1]
+                )
+                
+                loading_placeholder.empty()
+                
+                # Store assistant response and rerun
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": result['response'],
+                    "metrics": result.get('metrics', {})
+                })
+                st.rerun()
 
 # Footer
 st.markdown("---")
@@ -619,6 +820,15 @@ st.markdown(
         FitFact v1.0 | 
         <a href='https://github.com/rahulg2469/FitFact-Chatbot' target='_blank' style='color: #0096FF;'>GitHub</a>
     </div>
+    <style>
+    /* Hide any Streamlit debug text that appears after footer */
+    .main > .block-container > div:last-child {
+        display: none !important;
+    }
+    .main .element-container:has(+ div:empty) + div {
+        display: none !important;
+    }
+    </style>
     """,
     unsafe_allow_html=True
 )
