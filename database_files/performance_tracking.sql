@@ -1,6 +1,4 @@
 -- Performance Tracking Queries for FitFact
--- Week 3 - Analytics Implementation
--- Author: Satya Harish
 
 -- ============================================
 -- 1. Real-time System Health Dashboard

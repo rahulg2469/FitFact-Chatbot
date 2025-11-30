@@ -1,7 +1,5 @@
 """
 FitFact Database ERD Generator
-Week 4 - Auto-generate schema documentation
-Author: Satya Harish
 """
 
 import psycopg2
@@ -250,8 +248,8 @@ Junction table for paper categorization.
         with open('database_files/DATABASE_DOCUMENTATION.md', 'w') as f:
             f.write(full_doc)
         
-        print("✅ Documentation saved to DATABASE_DOCUMENTATION.md")
-        print("✅ ERD generated in Mermaid format")
+        print(" Documentation saved to DATABASE_DOCUMENTATION.md")
+        print(" ERD generated in Mermaid format")
         
         return full_doc
     

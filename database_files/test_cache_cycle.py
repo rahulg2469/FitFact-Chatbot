@@ -6,10 +6,10 @@ def test_cache_storage_and_retrieval():
     db = FitFactDB()
     cache = CacheManager(db)
     
-    print("🧪 Testing Complete Cache Cycle\n")
+    print(" Testing Complete Cache Cycle\n")
     
     # 1. Store a response
-    print("1️⃣ Storing new response in cache...")
+    print(" Storing new response in cache...")
     test_query = "What are the benefits of creatine for muscle growth?"
     test_response = """Based on meta-analysis research, creatine supplementation 
     has been shown to increase muscle strength by 5-15%, improve high-intensity 
@@ -22,12 +22,12 @@ def test_cache_storage_and_retrieval():
     response_id = cache.store_in_cache(test_query, test_response, paper_ids)
     
     # 2. Test exact match
-    print("\n2️⃣ Testing exact match lookup...")
+    print("\n Testing exact match lookup...")
     result = cache.smart_cache_lookup("What are the benefits of creatine for muscle growth?")
     assert result is not None, "Should find exact match"
     
     # 3. Test variations (should all match due to normalization)
-    print("\n3️⃣ Testing normalized variations...")
+    print("\n Testing normalized variations...")
     variations = [
         "benefits of creatine for muscles",
         "creatine benefits muscle growth",
@@ -43,7 +43,7 @@ def test_cache_storage_and_retrieval():
             print("✗ No match")
     
     # 4. Test cache statistics
-    print("\n4️⃣ Cache Statistics:")
+    print("\n Cache Statistics:")
     db.cursor.execute("""
         SELECT 
             COUNT(DISTINCT uq.query_id) as unique_queries,
@@ -60,7 +60,7 @@ def test_cache_storage_and_retrieval():
     print(f"Max times served: {stats['max_times_served']}")
     
     db.close()
-    print("\n✅ Cache cycle test complete!")
+    print("\n Cache cycle test complete!")
 
 if __name__ == "__main__":
     test_cache_storage_and_retrieval()

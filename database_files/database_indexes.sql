@@ -1,6 +1,4 @@
 -- FitFact Database Indexes
--- Created: Week 1 - Database Foundation
--- Purpose: Indexes for query optimization
 
 -- Research Papers Indexes
 CREATE INDEX idx_papers_pmid ON research_papers(pmid);

@@ -65,7 +65,7 @@ class CacheManager:
         
         exact_match = self.db.cursor.fetchone()
         if exact_match:
-            print(f"💯 Exact cache match found!")
+            print(f" Exact cache match found!")
             return exact_match
         
         # Step 3: Fuzzy match on normalized text
@@ -81,7 +81,7 @@ class CacheManager:
         
         fuzzy_match = self.db.cursor.fetchone()
         if fuzzy_match:
-            print(f"🎯 Fuzzy cache match: {fuzzy_match['similarity']:.2%} similarity")
+            print(f" Fuzzy cache match: {fuzzy_match['similarity']:.2%} similarity")
             # Update times_served counter
             self.db.cursor.execute("""
                 UPDATE cached_responses 
@@ -92,7 +92,7 @@ class CacheManager:
             self.db.conn.commit()
             return fuzzy_match
         
-        print(f"❌ No cache match found for: {query}")
+        print(f" No cache match found for: {query}")
         return None
     
     def store_in_cache(self, query: str, response: str, papers_used: List[int]) -> int:
@@ -131,7 +131,7 @@ class CacheManager:
             """, (response_id, paper_id, order, order))
         
         self.db.conn.commit()
-        print(f"✅ Cached response #{response_id} with {len(papers_used)} citations")
+        print(f" Cached response #{response_id} with {len(papers_used)} citations")
         return response_id
 
 # Test the cache manager

@@ -1,7 +1,5 @@
 """
 FitFact Performance Presentation Generator
-Week 4 - Generate slides data for presentation
-Author: Satya Harish
 """
 
 import json
@@ -115,13 +113,13 @@ def generate_presentation_data():
     with open('database_files/presentation_data.json', 'w') as f:
         json.dump(presentation_data, f, indent=2)
     
-    print("✅ Presentation data generated")
-    print("\n📊 KEY METRICS FOR SLIDES:")
+    print(" Presentation data generated")
+    print("\n KEY METRICS FOR SLIDES:")
     print("=" * 50)
     print("Cache Lookup: 1.26ms (Grade: A)")
     print("Full-Text Search: 9.14ms (Grade: A)")
     print("Complex Analytics: 0.50ms (Grade: A+)")
-    print("\n🎯 IMPROVEMENT STORY:")
+    print("\n IMPROVEMENT STORY:")
     print("Cache: 50ms → 1.26ms (97% faster)")
     print("Search: 100ms → 9.14ms (91% faster)")
     print("Analytics: 200ms → 0.50ms (99% faster)")

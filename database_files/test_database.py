@@ -8,7 +8,7 @@ class TestFitFactDatabase(unittest.TestCase):
     def setUpClass(cls):
         """Set up test database connection"""
         cls.db = FitFactDB()
-        print("\n🧪 Starting Database Tests...")
+        print("\n Starting Database Tests...")
     
     def test_01_insert_paper(self):
         """Test inserting a research paper"""
@@ -22,7 +22,7 @@ class TestFitFactDatabase(unittest.TestCase):
             study_type='rct'
         )
         self.assertIsNotNone(paper_id)
-        print("✓ Paper insert successful")
+        print(" Paper insert successful")
     
     def test_02_duplicate_paper(self):
         """Test handling duplicate papers (should update, not error)"""
@@ -44,7 +44,7 @@ class TestFitFactDatabase(unittest.TestCase):
         )
         result = self.db.cursor.fetchone()
         self.assertGreater(result['times_used'], 0)
-        print("✓ Duplicate handling works (times_used incremented)")
+        print(" Duplicate handling works (times_used incremented)")
     
     def test_03_cache_lookup(self):
         """Test fuzzy cache matching"""
@@ -65,7 +65,7 @@ class TestFitFactDatabase(unittest.TestCase):
         # Test similar query
         result = self.db.check_cache('whey protein muscle benefits')
         self.assertIsNotNone(result)
-        print(f"✓ Cache fuzzy match works (similarity: {result['similarity']:.2%})")
+        print(f" Cache fuzzy match works (similarity: {result['similarity']:.2%})")
     
     def test_04_full_text_search(self):
         """Test PostgreSQL full-text search"""
@@ -79,7 +79,7 @@ class TestFitFactDatabase(unittest.TestCase):
         """)
         results = self.db.cursor.fetchall()
         self.assertGreater(len(results), 0)
-        print(f"✓ Full-text search found {len(results)} papers")
+        print(f" Full-text search found {len(results)} papers")
     
     def test_05_api_logging(self):
         """Test API call logging"""
@@ -91,7 +91,7 @@ class TestFitFactDatabase(unittest.TestCase):
         )
         count = self.db.cursor.fetchone()['count']
         self.assertGreater(count, 0)
-        print("✓ API logging works")
+        print(" API logging works")
     
     def test_06_performance_check(self):
         """Test query performance"""
@@ -103,7 +103,7 @@ class TestFitFactDatabase(unittest.TestCase):
         elapsed = (time.time() - start) * 1000
         
         self.assertLess(elapsed, 100)  # Should be under 100ms
-        print(f"✓ Cache lookup performance: {elapsed:.2f}ms")
+        print(f" Cache lookup performance: {elapsed:.2f}ms")
     
     @classmethod
     def tearDownClass(cls):
@@ -111,7 +111,7 @@ class TestFitFactDatabase(unittest.TestCase):
         cls.db.cursor.execute("DELETE FROM research_papers WHERE pmid LIKE 'TEST%'")
         cls.db.conn.commit()
         cls.db.close()
-        print("\n✅ All database tests passed!\n")
+        print("\n All database tests passed!\n")
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
