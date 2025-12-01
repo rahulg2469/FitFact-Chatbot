@@ -1,7 +1,6 @@
 """
 Claude API Integration for FitFact
 Week 2 - Enhanced prompt engineering and response handling
-Author: Satya (completing Rahul's tasks)
 """
 
 import anthropic

@@ -1,7 +1,6 @@
 """
 End-to-End Integration Test for FitFact
 Week 2 - Test complete pipeline: Question → Keywords → PubMed → Claude → Response
-Author: Satya (completing Rahul's tasks)
 """
 
 import os

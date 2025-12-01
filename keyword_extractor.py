@@ -1,7 +1,6 @@
 """
 Keyword Extraction Module for FitFact
 Week 2 - Extract fitness-related keywords from user queries
-Author: Satya (completing Rahul's tasks)
 """
 
 import nltk

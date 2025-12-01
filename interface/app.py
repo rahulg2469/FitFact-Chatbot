@@ -36,11 +36,6 @@ BG_PATH = os.path.join(parent_dir, "assets", "gym_bg.jpg")
 def get_base64_image(path: str) -> str:
     return base64.b64encode(Path(path).read_bytes()).decode()
 
-print(f"🔍 Script directory: {script_dir}")
-print(f"📁 Parent directory: {parent_dir}")
-print(f"🖼️ Logo path: {logo_path}")
-print(f"✅ Logo exists: {os.path.exists(logo_path)}")
-
 
 st.set_page_config(
     page_title="FitFact - Evidence-Based Fitness Advisor",
@@ -260,14 +255,14 @@ class FitFactPipeline:
                 }
         
         # Optimize the query for PubMed search
-        print("\n🔬 OPTIMIZING QUERY FOR PUBMED...")
+        print("\n OPTIMIZING QUERY FOR PUBMED...")
         optimized = self.query_optimizer.optimize_query(user_query)
         research_focuses = self.query_optimizer.extract_research_focus(user_query)
         
-        print(f"📝 Original query: {user_query}")
-        print(f"🎯 Academic query: {optimized['academic'][:100]}...")
-        print(f"🏷️ MeSH enhanced: {optimized['mesh_enhanced'][:100]}...")
-        print(f"🔬 Research focuses: {', '.join(research_focuses)}")
+        print(f"Original query: {user_query}")
+        print(f"Academic query: {optimized['academic'][:100]}...")
+        print(f"MeSH enhanced: {optimized['mesh_enhanced'][:100]}...")
+        print(f"Research focuses: {', '.join(research_focuses)}")
         
         # Extract keywords as fallback
         keywords = self.keyword_extractor.extract_keywords(user_query)
@@ -276,7 +271,7 @@ class FitFactPipeline:
         metrics['cache_hit'] = False
         
         # Search PubMed with optimized queries
-        print("\n📚 SEARCHING PUBMED WITH OPTIMIZED QUERIES...")
+        print("\n SEARCHING PUBMED WITH OPTIMIZED QUERIES...")
         papers = []
         seen_pmids = set()
         
@@ -602,9 +597,9 @@ with st.sidebar:
     st.markdown("---")
     
     if st.session_state.db_connected:
-        st.success("✅ Database Connected")
+        st.success("Database Connected")
     else:
-        st.error("❌ Database Disconnected")
+        st.error("Database Disconnected")
     
     if st.button("🗑️ Clear Chat", use_container_width=True):
         st.session_state.messages = []
