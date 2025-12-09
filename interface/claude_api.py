@@ -112,12 +112,31 @@ Abstract: {abstract}
         CURRENT USER QUESTION: {user_question}
 
         Provide a helpful response that:
-        - Considers the conversation context (if this is a follow-up)
-        - Starts with a direct answer to their question
-        - Includes specific recommendations with numbers when possible
-        - Uses evidence from the papers to support your advice
-        - Ends with practical, actionable next steps
-        - Cites sources naturally as (Author et al., Year)
+            - Considers the conversation context (if this is a follow-up)
+            - Answers their question directly and completely
+            - Provides specific recommendations with concrete numbers and guidelines
+            - Uses evidence from the papers to support your advice
+            - Includes in-text citations as (Author et al., Year)
+            - Ends with actionable next steps
+            - MUST end with a "References" section
+        RESPONSE STRUCTURE:
+        1. Start with a direct answer to the question
+        2. Provide detailed explanation with specific recommendations
+        3. Include practical examples and concrete numbers
+        4. Cite research naturally throughout your response
+        5. End with a References section
+
+        CRITICAL: After your main response, you MUST include a References section listing ONLY the papers you actually cited.
+        
+        Format the references section exactly like this:
+        
+        **References:**
+        1. [Author Last Name] et al. (Year) - "[Full Paper Title]" - [Journal Name] - PMID: [PMID number]
+        2. [Author Last Name] et al. (Year) - "[Full Paper Title]" - [Journal Name] - PMID: [PMID number]
+        
+        Example:
+        **References:**
+        1. Schoenfeld BJ et al. (2016) - "Effects of Resistance Training Frequency on Measures of Muscle Hypertrophy" - Sports Medicine - PMID: 27102172
 
         Your helpful response:"""
     

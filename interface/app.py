@@ -591,7 +591,7 @@ with st.sidebar:
         "FitFact provides fitness advice based exclusively on "
         "peer-reviewed research from PubMed. Every response includes "
         "proper citations to scientific studies.\n\n"
-        "🔬 Now with enhanced query optimization for better research matching!"
+        "Now available with enhanced query optimization for better research matching!"
     )
     
     st.markdown("---")
