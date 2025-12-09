@@ -221,13 +221,13 @@ FitFact implements a three-tier architecture:
 ### Screenshots
 
 #### Main Interface
-![FitFact Main Interface](assets/screenshots/main_interface.png)
+![FitFact Main Interface](assets/Screenshots/main_interface.png)
 
 #### Response with Citations
-![Response Example](assets/screenshots/response_example.png)
+![Response Example](assets/Screenshots/response_example.png)
 
 #### System Metrics Dashboard
-![Metrics](assets/screenshots/query_metrics.png)
+![Metrics](assets/Screenshots/query_metrics.png)
 
 ## Project Structure
 
