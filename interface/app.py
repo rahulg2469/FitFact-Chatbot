@@ -1,8 +1,3 @@
-"""
-FitFact - Research-Backed Fitness Q&A Chatbot
-Production-grade Streamlit interface with PubMed Query Optimizer
-"""
-
 import streamlit as st
 import time
 from datetime import datetime
@@ -10,6 +5,7 @@ import sys
 import os
 import base64
 from pathlib import Path
+from pdf_exporter import FitFactPDFExporter
 
 # Add paths for imports
 sys.path.append('..')  # Parent directory
@@ -35,6 +31,36 @@ BG_PATH = os.path.join(parent_dir, "assets", "gym_bg.jpg")
 
 def get_base64_image(path: str) -> str:
     return base64.b64encode(Path(path).read_bytes()).decode()
+
+
+# Define casual responses
+CASUAL_RESPONSES = {
+    'thank you': "You're welcome! Let me know if you have any other fitness questions! 💪",
+    'thanks': "Happy to help! Feel free to ask anything else about fitness or nutrition.",
+    'thank': "You're welcome! What else can I help you with?",
+    'ok': "Great! Anything else you'd like to know?",
+    'okay': "Sounds good! Let me know if you need anything else.",
+    'got it': "Perfect! I'm here if you have more questions.",
+    'bye': "Goodbye! Stay healthy and keep training! 💪",
+    'goodbye': "Take care! Come back anytime with fitness questions!",
+    'hello': "Hello! I'm FitFact, your evidence-based fitness advisor. What fitness question can I help you with today?",
+    'hi': "Hi there! What fitness or nutrition question do you have?",
+    'hey': "Hey! How can I help you with your fitness goals today?",
+}
+
+def is_casual_message(prompt: str) -> tuple:
+    """Check if message is casual, return (is_casual, response_text)"""
+    prompt_lower = prompt.lower().strip()
+    
+    if prompt_lower in CASUAL_RESPONSES:
+        return True, CASUAL_RESPONSES[prompt_lower]
+    
+    if len(prompt.split()) <= 3:
+        for phrase, response in CASUAL_RESPONSES.items():
+            if phrase in prompt_lower:
+                return True, response
+    
+    return False, None
 
 
 st.set_page_config(
@@ -183,6 +209,16 @@ span[class*="cursor"] {{
 .stMarkdown p:only-child:not(:has(a)):not(:has(strong)):not(:has(em)) {{
     display: none !important;
 }}
+
+/* Smooth scrolling for anchor links */
+html {{
+    scroll-behavior: smooth;
+}}
+
+/* Highlight effect for clicked questions */
+a:hover div {{
+    background: rgba(100, 120, 150, 0.3) !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -198,6 +234,8 @@ if 'db_connected' not in st.session_state:
     st.session_state.db_connected = False
 if 'pipeline' not in st.session_state:
     st.session_state.pipeline = None
+if 'pdf_exporter' not in st.session_state:
+    st.session_state.pdf_exporter = FitFactPDFExporter()
 
 # Initialize the pipeline
 @st.cache_resource
@@ -585,6 +623,37 @@ with st.sidebar:
         st.metric("Cache Hit Rate", f"{hit_rate:.1f}%")
     
     st.markdown("---")
+
+    # CONVERSATION HISTORY - EXCLUDE CASUAL MESSAGES
+    if len(st.session_state.messages) > 0:
+        st.markdown("### 💬 Conversation History")
+    
+    # Get only user messages (questions) with their indices, excluding casual messages
+    user_messages_with_idx = []
+    for i, msg in enumerate(st.session_state.messages):
+        if msg["role"] == "user":
+            # Check if it's a casual message
+            is_casual, _ = is_casual_message(msg["content"])
+            if not is_casual:
+                user_messages_with_idx.append((i, msg))
+    
+    if user_messages_with_idx:
+        with st.expander(f"📝 {len(user_messages_with_idx)} Questions Asked", expanded=False):
+            for question_num, (idx, msg) in enumerate(user_messages_with_idx, 1):
+                # Truncate long questions
+                question = msg["content"]
+                display_question = question if len(question) <= 60 else question[:60] + "..."
+                
+                # Create clickable link that scrolls to the message
+                st.markdown(f"""
+                <a href="#msg_{idx}" style="text-decoration: none; color: inherit;">
+                    <div style="padding: 0.5rem; margin: 0.3rem 0; border-radius: 5px; background: rgba(100, 120, 150, 0.1); transition: background 0.2s;">
+                        <strong>{question_num}.</strong> {display_question}
+                    </div>
+                </a>
+                """, unsafe_allow_html=True)
+    
+    st.markdown("---")
     
     st.markdown("### ℹ️ About FitFact")
     st.info(
@@ -605,34 +674,7 @@ with st.sidebar:
         st.session_state.messages = []
         st.rerun()
 
-# Define casual responses
-CASUAL_RESPONSES = {
-    'thank you': "You're welcome! Let me know if you have any other fitness questions! 💪",
-    'thanks': "Happy to help! Feel free to ask anything else about fitness or nutrition.",
-    'thank': "You're welcome! What else can I help you with?",
-    'ok': "Great! Anything else you'd like to know?",
-    'okay': "Sounds good! Let me know if you need anything else.",
-    'got it': "Perfect! I'm here if you have more questions.",
-    'bye': "Goodbye! Stay healthy and keep training! 💪",
-    'goodbye': "Take care! Come back anytime with fitness questions!",
-    'hello': "Hello! I'm FitFact, your evidence-based fitness advisor. What fitness question can I help you with today?",
-    'hi': "Hi there! What fitness or nutrition question do you have?",
-    'hey': "Hey! How can I help you with your fitness goals today?",
-}
 
-def is_casual_message(prompt: str) -> tuple:
-    """Check if message is casual, return (is_casual, response_text)"""
-    prompt_lower = prompt.lower().strip()
-    
-    if prompt_lower in CASUAL_RESPONSES:
-        return True, CASUAL_RESPONSES[prompt_lower]
-    
-    if len(prompt.split()) <= 3:
-        for phrase, response in CASUAL_RESPONSES.items():
-            if phrase in prompt_lower:
-                return True, response
-    
-    return False, None
 
 # Process pending question from quick buttons
 if 'pending_question' in st.session_state and st.session_state.pending_question:
@@ -682,11 +724,13 @@ if 'pending_question' in st.session_state and st.session_state.pending_question:
 chat_container = st.container()
 
 with chat_container:
-    for message in st.session_state.messages:
+    for idx,message in enumerate(st.session_state.messages):
         role = message["role"]
         content = message["content"]
         
         if role == "user":
+            # Add anchor ID for user messages
+            st.markdown(f'<div id="msg_{idx}"></div>', unsafe_allow_html=True)
             # User message on the RIGHT with darker sky blue background
             st.markdown(f"""
             <div style="display: flex; justify-content: flex-end; margin: 1rem 0;">
@@ -704,8 +748,86 @@ with chat_container:
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
+            question = ""
+            if idx > 0 and st.session_state.messages[idx-1]["role"] == "user":
+                question = st.session_state.messages[idx-1]["content"]
+
             
-            # Show metrics if available
+            # PDF Export with Options Menu
+            try:
+                # Main Export PDF button with expander
+                with st.expander("📥 Export PDF", expanded=False):
+                    col1, col2 = st.columns(2)
+        
+                    with col1:
+                    # Export this Q&A only
+                        st.markdown("**📄 Single Q&A**")
+                        st.caption("Export only this question and answer")
+            
+                        metrics = message.get("metrics", {})
+                        pdf_bytes = st.session_state.pdf_exporter.generate_pdf(
+                            question=question,
+                            response=content,
+                            metrics=metrics
+                        )
+            
+                        filename = f"fitfact_qa_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            
+                        st.download_button(
+                            label="⬇️ Download This Q&A",
+                            data=pdf_bytes,
+                            file_name=filename,
+                            mime="application/pdf",
+                            key=f"pdf_single_{idx}",
+                            use_container_width=True
+                        )
+        
+                with col2:
+                    # Export entire chat
+                    st.markdown("**📚 Full Conversation**")
+                    st.caption("Export all questions and answers")
+            
+                    # Generate full chat content
+                    full_chat_content = ""
+            
+                    # Collect all non-casual Q&A pairs
+                    for i in range(0, len(st.session_state.messages), 2):
+                        if i+1 < len(st.session_state.messages):
+                            q_msg = st.session_state.messages[i]
+                            a_msg = st.session_state.messages[i+1]
+                    
+                            if q_msg["role"] == "user" and a_msg["role"] == "assistant":
+                                # Check if casual
+                                is_casual_check, _ = is_casual_message(q_msg["content"])
+                                if not is_casual_check:
+                                    full_chat_content += f"\n\n{'='*60}\n\n"
+                                    full_chat_content += f"QUESTION: {q_msg['content']}\n\n"
+                                    full_chat_content += f"ANSWER: {a_msg['content']}\n\n"
+            
+                    # Generate PDF with full chat
+                    full_pdf_bytes = st.session_state.pdf_exporter.generate_pdf(
+                        question="Complete Conversation History",
+                        response=full_chat_content,
+                        metrics={}
+                    )
+            
+                    filename_full = f"fitfact_full_chat_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            
+                    st.download_button(
+                        label="⬇️ Download Full Chat",
+                        data=full_pdf_bytes,
+                        file_name=filename_full,
+                        mime="application/pdf",
+                        key=f"download_full_{idx}",
+                        use_container_width=True
+                    )
+        
+            except Exception as e:
+                print(f"PDF generation error: {e}")
+
+            
+                # Show metrics if available
             if "metrics" in message:
                 with st.expander("📈 Query Metrics", expanded=False):
                     metrics = message["metrics"]
