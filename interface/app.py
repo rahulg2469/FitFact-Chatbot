@@ -219,6 +219,52 @@ html {{
 a:hover div {{
     background: rgba(100, 120, 150, 0.3) !important;
 }}
+/* Make Export PDF and Copy Citations buttons solid dark */
+[data-testid="stExpander"] {{
+    background-color: rgba(30, 40, 55, 0.95) !important;
+    border: 1px solid rgba(100, 120, 150, 0.3) !important;
+    border-radius: 8px !important;
+}}
+
+/* Make all expanders and buttons compact and same size */
+[data-testid="stExpander"] {{
+    background-color: rgba(30, 40, 55, 0.95) !important;
+    border: 1px solid rgba(100, 120, 150, 0.3) !important;
+    border-radius: 8px !important;
+    margin: 0.3rem 0 !important;
+}}
+
+/* Compact expander summary (header) */
+[data-testid="stExpander"] summary {{
+    color: white !important;
+    font-weight: 500 !important;
+    padding: 0.5rem 1rem !important;
+    min-height: unset !important;
+}}
+
+/* Make buttons compact with smaller font */
+div[data-testid="stButton"] > button {{
+    padding: 0.3rem 0.6rem !important;
+    font-size: 0.8rem !important;
+    height: auto !important;
+    min-height: unset !important;
+}}
+
+/* Style the action buttons */
+div[data-testid="stButton"] > button[kind="secondary"] {{
+    background-color: rgba(30, 40, 55, 0.95) !important;
+    border: 1px solid rgba(100, 120, 150, 0.3) !important;
+    color: white !important;
+    padding: 0.3rem 0.6rem !important;
+    margin: 0.2rem 0 !important;
+    font-weight: 400 !important;
+    font-size: 0.8rem !important;
+}}
+
+div[data-testid="stButton"] > button[kind="secondary"]:hover {{
+    background-color: rgba(40, 50, 65, 0.95) !important;
+    border-color: rgba(120, 140, 170, 0.5) !important;
+}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -754,95 +800,99 @@ with chat_container:
                 question = st.session_state.messages[idx-1]["content"]
 
             
-            # PDF Export with Options Menu
+            # PDF Export, Query Metrics, Copy Citations - Horizontal Layout
             try:
-                # Main Export PDF button with expander
-                with st.expander("📥 Export PDF", expanded=False):
-                    col1, col2 = st.columns(2)
-        
-                    with col1:
-                    # Export this Q&A only
-                        st.markdown("**📄 Single Q&A**")
-                        st.caption("Export only this question and answer")
-            
+                # Create 3 columns for the buttons in the new order
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    # PDF Export Button
+                    if st.button("➜] Export PDF", key=f"export_pdf_{idx}", use_container_width=True):
+                        st.session_state[f'show_pdf_options_{idx}'] = not st.session_state.get(f'show_pdf_options_{idx}', False)
+                
+                with col2:
+                    # Query Metrics Button (only if metrics exist)
+                    if "metrics" in message:
+                        if st.button("📶 Query Metrics", key=f"metrics_btn_{idx}", use_container_width=True):
+                            st.session_state[f'show_metrics_{idx}'] = not st.session_state.get(f'show_metrics_{idx}', False)
+                
+                with col3:
+                    # Copy Citations Button
+                    if st.button("🗐 Copy Citations", key=f"copy_citations_{idx}", use_container_width=True):
+                        st.session_state[f'show_citations_{idx}'] = not st.session_state.get(f'show_citations_{idx}', False)
+
+                # Show PDF options if button was clicked
+                if st.session_state.get(f'show_pdf_options_{idx}', False):
+                    subcol1, subcol2 = st.columns(2)
+                    
+                    with subcol1:
+                        # Export this Q&A only
                         metrics = message.get("metrics", {})
                         pdf_bytes = st.session_state.pdf_exporter.generate_pdf(
                             question=question,
                             response=content,
                             metrics=metrics
                         )
-            
+                        
                         filename = f"fitfact_qa_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-            
+                        
                         st.download_button(
-                            label="⬇️ Download This Q&A",
+                            label="📄 This Q&A",
                             data=pdf_bytes,
                             file_name=filename,
                             mime="application/pdf",
                             key=f"pdf_single_{idx}",
                             use_container_width=True
                         )
-        
-                with col2:
-                    # Export entire chat
-                    st.markdown("**📚 Full Conversation**")
-                    st.caption("Export all questions and answers")
-            
-                    # Generate full chat content
-                    full_chat_content = ""
-            
-                    # Collect all non-casual Q&A pairs
-                    for i in range(0, len(st.session_state.messages), 2):
-                        if i+1 < len(st.session_state.messages):
-                            q_msg = st.session_state.messages[i]
-                            a_msg = st.session_state.messages[i+1]
                     
-                            if q_msg["role"] == "user" and a_msg["role"] == "assistant":
-                                # Check if casual
-                                is_casual_check, _ = is_casual_message(q_msg["content"])
-                                if not is_casual_check:
-                                    full_chat_content += f"\n\n{'='*60}\n\n"
-                                    full_chat_content += f"QUESTION: {q_msg['content']}\n\n"
-                                    full_chat_content += f"ANSWER: {a_msg['content']}\n\n"
-            
-                    # Generate PDF with full chat
-                    full_pdf_bytes = st.session_state.pdf_exporter.generate_pdf(
-                        question="Complete Conversation History",
-                        response=full_chat_content,
-                        metrics={}
-                    )
-            
-                    filename_full = f"fitfact_full_chat_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-            
-                    st.download_button(
-                        label="⬇️ Download Full Chat",
-                        data=full_pdf_bytes,
-                        file_name=filename_full,
-                        mime="application/pdf",
-                        key=f"download_full_{idx}",
-                        use_container_width=True
-                    )
-        
-            except Exception as e:
-                print(f"PDF generation error: {e}")
+                    with subcol2:
+                        # Export entire chat
+                        full_chat_content = ""
+                        
+                        for i in range(0, len(st.session_state.messages), 2):
+                            if i+1 < len(st.session_state.messages):
+                                q_msg = st.session_state.messages[i]
+                                a_msg = st.session_state.messages[i+1]
+                                
+                                if q_msg["role"] == "user" and a_msg["role"] == "assistant":
+                                    is_casual_check, _ = is_casual_message(q_msg["content"])
+                                    if not is_casual_check:
+                                        full_chat_content += f"\n\n{'='*60}\n\n"
+                                        full_chat_content += f"QUESTION: {q_msg['content']}\n\n"
+                                        full_chat_content += f"ANSWER: {a_msg['content']}\n\n"
+                        
+                        full_pdf_bytes = st.session_state.pdf_exporter.generate_pdf(
+                            question="Complete Conversation History",
+                            response=full_chat_content,
+                            metrics={}
+                        )
+                        
+                        filename_full = f"fitfact_full_chat_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                        
+                        st.download_button(
+                            label="📚 Full Chat",
+                            data=full_pdf_bytes,
+                            file_name=filename_full,
+                            mime="application/pdf",
+                            key=f"download_full_{idx}",
+                            use_container_width=True
+                        )
 
-            
-                # Show metrics if available
-            if "metrics" in message:
-                with st.expander("📈 Query Metrics", expanded=False):
+                # Show metrics if button was clicked
+                if st.session_state.get(f'show_metrics_{idx}', False) and "metrics" in message:
                     metrics = message["metrics"]
                     
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
+                    metcol1, metcol2, metcol3, metcol4 = st.columns(4)
+                    with metcol1:
                         st.metric("Response Time", f"{metrics.get('response_time', 0):.2f}s")
-                    with col2:
+                    with metcol2:
                         if metrics.get('cache_hit'):
                             st.metric("Source", "✅ Cache")
                         else:
                             st.metric("Papers Used", metrics.get('papers_found', 0))
-                    with col3:
+                    with metcol3:
                         st.metric("Citations", metrics.get('citations', 0))
-                    with col4:
+                    with metcol4:
                         if metrics.get('optimization_applied'):
                             st.metric("Optimized", "✅ Yes")
                         else:
@@ -852,6 +902,38 @@ with chat_container:
                         st.write(f"**Research Focus:** {', '.join(metrics['research_focuses'])}")
                     if metrics.get('keywords'):
                         st.write(f"**Keywords:** {', '.join(metrics['keywords'][:5])}")
+
+                # Show citations if button was clicked
+                if st.session_state.get(f'show_citations_{idx}', False):
+                    import re
+                    citations = re.findall(r'\([^)]*PMID:\s*\d+[^)]*\)', content)
+                    
+                    if "References:" in content or "Reference:" in content:
+                        ref_match = re.search(r'References?:\s*(.+)', content, re.DOTALL | re.IGNORECASE)
+                        references_section = ref_match.group(1).strip() if ref_match else ""
+                    else:
+                        references_section = ""
+                    
+                    if citations or references_section:
+                        citation_text = "CITATIONS:\n\n"
+                        
+                        if citations:
+                            citation_text += "In-text citations:\n"
+                            for i, citation in enumerate(set(citations), 1):
+                                citation_text += f"{i}. {citation}\n"
+                            citation_text += "\n"
+                        
+                        if references_section:
+                            citation_text += "References:\n"
+                            citation_text += references_section
+                        
+                        st.code(citation_text, language=None)
+                        st.caption("👆 Select and copy (Ctrl+C)")
+                    else:
+                        st.warning("⚠️ No citations found")
+                
+            except Exception as e:
+                print(f"PDF/Citation/Metrics error: {e}")
 
 # Handle new chat input
 if prompt := st.chat_input("Ask me anything about fitness, nutrition, or training..."):
