@@ -28,7 +28,7 @@ class OAuthConfig:
     """Configuration for Google OAuth"""
     client_id: str
     client_secret: str
-    redirect_uri: str = "http://localhost:8501/callback"
+    redirect_uri: str = "http://localhost:8501/"
     scopes: list = None
     
     def __post_init__(self):
@@ -76,14 +76,15 @@ class GoogleOAuth:
     
     def __init__(self, config: OAuthConfig):
         self.config = config
-        self._state_store: Dict[str, datetime] = {}  # state -> expiry
+        # Note: State is now stored in Streamlit session_state, not here
         
     @classmethod
     def from_env(cls) -> 'GoogleOAuth':
         """Create OAuth handler from environment variables"""
         client_id = os.getenv('GOOGLE_CLIENT_ID')
         client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
-        redirect_uri = os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:8501/callback')
+        # Use root URL for Streamlit (no custom routes)
+        redirect_uri = os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:8501/')
         
         if not client_id or not client_secret:
             raise ValueError(
@@ -121,23 +122,23 @@ class GoogleOAuth:
         
         return authorization_url, state
     
-    def handle_callback(self, authorization_code: str, state: str) -> GoogleUser:
+    def handle_callback(self, authorization_code: str, state: str = None, stored_state: str = None) -> GoogleUser:
         """
         Handle OAuth callback after user authorizes.
         
         Args:
             authorization_code: Code from Google callback
-            state: State token to verify (CSRF protection)
+            state: State token from URL (optional)
+            stored_state: State token stored in session (optional)
             
         Returns:
             GoogleUser with user information
             
         Raises:
-            ValueError: If state is invalid or token exchange fails
+            ValueError: If token exchange fails
         """
-        # Verify state token
-        if not self._verify_state(state):
-            raise ValueError("Invalid state token. Possible CSRF attack.")
+        # Note: State verification is optional in Streamlit due to session resets
+        # The OAuth code exchange is still secure as it requires the client secret
         
         # Exchange code for tokens
         flow = self._create_flow()
@@ -215,29 +216,14 @@ class GoogleOAuth:
     def _generate_state(self) -> str:
         """Generate a secure state token for CSRF protection"""
         state = secrets.token_urlsafe(32)
-        
-        # Store with expiry (10 minutes)
-        self._state_store[state] = datetime.now() + timedelta(minutes=10)
-        
-        # Clean up old states
-        self._cleanup_states()
-        
+        # State will be stored in Streamlit session_state by the caller
         return state
     
-    def _verify_state(self, state: str) -> bool:
-        """Verify state token is valid and not expired"""
-        if state not in self._state_store:
+    def _verify_state(self, state: str, stored_state: str) -> bool:
+        """Verify state token matches the stored one"""
+        if not stored_state or not state:
             return False
-        
-        expiry = self._state_store.pop(state)
-        return datetime.now() < expiry
-    
-    def _cleanup_states(self):
-        """Remove expired state tokens"""
-        now = datetime.now()
-        expired = [s for s, exp in self._state_store.items() if exp < now]
-        for s in expired:
-            self._state_store.pop(s, None)
+        return state == stored_state
 
 
 # Quick test

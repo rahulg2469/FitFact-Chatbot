@@ -18,9 +18,13 @@ from claude_api import ClaudeProcessor
 from keyword_extractor import FitnessKeywordExtractor
 from pubmed_query_optimizer import PubMedQueryOptimizer
 from src.etl.pubmed_fetcher import search_pubmed, fetch_paper_details
+from streamlit_auth import init_auth
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Initialize authentication
+auth = init_auth()
 
 
 # Get absolute path to logo
@@ -659,6 +663,11 @@ if len(st.session_state.messages) == 0:
 
 # Sidebar
 with st.sidebar:
+    # User Authentication Section
+    auth.render_auth_section()
+    
+    st.markdown("---")
+    
     st.markdown("### 📊 Session Statistics")
     
     col1, col2 = st.columns(2)
@@ -936,10 +945,16 @@ with chat_container:
                 print(f"PDF/Citation/Metrics error: {e}")
 
 # Handle new chat input
+# Show sign-in prompt if needed (after 2nd message)
+auth.render_signin_prompt()
+
 if prompt := st.chat_input("Ask me anything about fitness, nutrition, or training..."):
     # Add user message immediately
     st.session_state.messages.append({"role": "user", "content": prompt})
     st.session_state.total_queries += 1
+    
+    # Increment auth message counter for sign-in prompt
+    auth.increment_message_count()
     
     # Force rerun to display the user message
     st.rerun()
@@ -1009,6 +1024,16 @@ if (st.session_state.messages and
                     "content": result['response'],
                     "metrics": result.get('metrics', {})
                 })
+                
+                # Save to user history if logged in
+                auth.save_query_to_history(
+                    query=last_user_message,
+                    response=result['response'],
+                    papers_used=result.get('metrics', {}).get('papers_found', 0),
+                    response_time_ms=int(result.get('metrics', {}).get('response_time', 0) * 1000),
+                    was_cached=result.get('cached', False)
+                )
+                
                 st.rerun()
 
 # Footer
