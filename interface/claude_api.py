@@ -1,18 +1,19 @@
 """
 Claude API Integration for FitFact
-Phase 3 - ML-based prompt optimization integrated
+Phase 3 - ML-based prompt optimization + Structured JSON output
 """
 
 import anthropic
 import os
 import json
+import re
 from dotenv import load_dotenv
 from typing import List, Dict, Optional
 
 load_dotenv()
 
 class ClaudeProcessor:
-    """Enhanced Claude API processor with ML-based prompt optimization"""
+    """Enhanced Claude API processor with ML optimization and structured output"""
     
     def __init__(self):
         self.client = anthropic.Anthropic(
@@ -20,10 +21,9 @@ class ClaudeProcessor:
         )
         self.model = "claude-3-5-haiku-20241022"
         
-        # NEW: Initialize ML-based prompt selector
+        # Initialize ML-based prompt selector
         try:
             import sys
-            # Add parent directory to path for imports
             parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             if parent_dir not in sys.path:
                 sys.path.insert(0, parent_dir)
@@ -39,14 +39,10 @@ class ClaudeProcessor:
             self.ml_enabled = False
         
     def format_papers_for_prompt(self, papers: List[Dict]) -> str:
-        """
-        Format PubMed papers for Claude prompt
-        Handles actual data structure from pubmed_fetcher.py
-        """
+        """Format PubMed papers for Claude prompt"""
         formatted_papers = []
         
-        for i, paper in enumerate(papers[:5], 1):  # Limit to top 5 papers
-            # Handle authors - could be list or string
+        for i, paper in enumerate(papers[:5], 1):
             authors = paper.get('authors', [])
             if isinstance(authors, list):
                 author_str = ', '.join(authors[:3])
@@ -55,19 +51,13 @@ class ClaudeProcessor:
             else:
                 author_str = str(authors) if authors else "Unknown"
             
-            # Extract year from publication_date
             pub_date = paper.get('publication_date', '')
-            if pub_date and '-' in pub_date:
-                year = pub_date.split('-')[0]
-            else:
-                year = pub_date or "Unknown"
+            year = pub_date.split('-')[0] if pub_date and '-' in pub_date else pub_date or "Unknown"
             
-            # Handle abstract - might be string or list
             abstract = paper.get('abstract', 'No abstract available')
             if isinstance(abstract, list):
                 abstract = ' '.join(abstract)
             
-            # Truncate very long abstracts
             if len(abstract) > 800:
                 abstract = abstract[:800] + "..."
             
@@ -105,7 +95,7 @@ Abstract: {abstract}
                 context_section += f"{role}: {content}\n"
             context_section += "\n"
         
-        # NEW: Use ML prompt selector if available
+        # Use ML prompt selector if available
         if self.ml_enabled and self.prompt_selector:
             result = self.prompt_selector.select_prompt(
                 query=user_question,
@@ -113,7 +103,6 @@ Abstract: {abstract}
                 formatted_papers=formatted_papers
             )
             
-            # Log the selection for monitoring
             print(f"🤖 ML Prompt Selected: {result['complexity'].upper()} "
                   f"(confidence: {result['confidence']:.1%}, "
                   f"~{result['estimated_tokens']} tokens)")
@@ -162,86 +151,275 @@ Your evidence-based response:"""
                 'ml_optimized': False
             }
     
+    def create_structured_prompt(self, user_question: str, papers: List[Dict], 
+                                conversation_history: list = None) -> str:
+        """Create prompt that requests structured JSON output (alternative approach)"""
+        formatted_papers = self.format_papers_for_prompt(papers)
+        
+        context_section = ""
+        if conversation_history and len(conversation_history) > 1:
+            recent_messages = conversation_history[-6:]
+            context_section = "\nPREVIOUS CONVERSATION:\n"
+            for msg in recent_messages[:-1]:
+                role = "User" if msg['role'] == 'user' else 'FitFact'
+                content = msg['content'][:200] + "..." if len(msg.get('content', '')) > 200 else msg.get('content', '')
+                context_section += f"{role}: {content}\n"
+        
+        prompt = f"""You are FitFact, an evidence-based fitness advisor.
+{context_section}
+RESEARCH:
+{formatted_papers}
+
+QUESTION: {user_question}
+
+You MUST respond with ONLY a JSON object (no markdown, no backticks, no extra text).
+
+Format:
+{{"headline":"Direct 1-2 sentence answer","points":[{{"title":"Topic Name","content":"Details with (Author, Year) citations"}}],"takeaway":"Brief action summary","references":[{{"num":1,"author":"LastName","year":"2024","title":"Paper title","journal":"Journal","pmid":"12345"}}]}}
+
+RULES:
+- 3-5 points with specific actionable advice
+- Include numbers and recommendations  
+- Only cite papers you reference
+- Keep titles short: "Protein Timing", "Rest Days"
+- Citations format: (Author et al., Year)
+
+JSON response:"""
+        
+        return prompt
+    
+    def parse_structured_response(self, response_text: str, papers: List[Dict]) -> Dict:
+        """Parse Claude's JSON response with robust fallback handling"""
+        try:
+            cleaned = response_text.strip()
+            
+            if '```' in cleaned:
+                match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', cleaned)
+                if match:
+                    cleaned = match.group(1)
+                else:
+                    cleaned = re.sub(r'```(?:json)?', '', cleaned).strip()
+            
+            json_match = re.search(r'\{[\s\S]*\}', cleaned)
+            if json_match:
+                cleaned = json_match.group(0)
+            
+            data = json.loads(cleaned)
+            
+            if data.get('references'):
+                for ref in data['references']:
+                    if not ref.get('pmid'):
+                        for paper in papers:
+                            pub_date = paper.get('publication_date', '')
+                            year = pub_date.split('-')[0] if '-' in pub_date else pub_date
+                            if str(ref.get('year')) == str(year):
+                                ref['pmid'] = paper.get('pmid', '')
+                                ref['title'] = paper.get('title', ref.get('title', ''))
+                                ref['journal'] = paper.get('journal', ref.get('journal', ''))
+                                break
+            
+            if 'headline' in data:
+                return {'structured': True, 'data': data}
+                
+        except json.JSONDecodeError as e:
+            print(f"JSON parse error: {e}")
+        except Exception as e:
+            print(f"Parse error: {e}")
+        
+        return {'structured': False, 'text': response_text}
+    
+    def build_references_from_papers(self, papers: List[Dict]) -> List[Dict]:
+        """Build reference list from papers"""
+        refs = []
+        for i, paper in enumerate(papers[:6], 1):
+            authors = paper.get('authors', [])
+            if isinstance(authors, list):
+                author = authors[0].split()[0] if authors else "Unknown"
+            else:
+                author = str(authors).split()[0] if authors else "Unknown"
+            
+            pub_date = paper.get('publication_date', '')
+            year = pub_date.split('-')[0] if '-' in pub_date else pub_date or "Unknown"
+            
+            refs.append({
+                "num": i,
+                "author": author,
+                "year": year,
+                "title": paper.get('title', 'No title'),
+                "journal": paper.get('journal', 'Unknown'),
+                "pmid": paper.get('pmid', '')
+            })
+        return refs
+    
+    def format_structured_as_text(self, data: Dict) -> str:
+        """Convert structured data to readable text"""
+        parts = []
+        
+        if data.get('headline'):
+            parts.append(data['headline'])
+        
+        if data.get('points'):
+            for i, point in enumerate(data['points'], 1):
+                parts.append(f"\n{i}. **{point.get('title', 'Point')}**: {point.get('content', '')}")
+        
+        if data.get('takeaway'):
+            parts.append(f"\n{data['takeaway']}")
+        
+        if data.get('references'):
+            parts.append("\n\n**References:**")
+            for ref in data['references']:
+                parts.append(f"{ref.get('num', '')}. {ref.get('author', '')} et al. ({ref.get('year', '')}) - \"{ref.get('title', '')}\" - {ref.get('journal', '')} - PMID: {ref.get('pmid', '')}")
+        
+        return '\n'.join(parts)
+    
     def generate_response(self, papers: List[Dict], user_question: str, 
-                         conversation_history: list = None) -> Dict:
+                         conversation_history: list = None, 
+                         use_structured: bool = False) -> Dict:
         """
-        Generate a response using Claude API with ML-optimized prompts
+        Generate response with ML-optimized prompts
+        
+        Args:
+            papers: Research papers
+            user_question: User query
+            conversation_history: Previous messages
+            use_structured: If True, use structured JSON output (optional feature)
         """
         try:
-            # Create the prompt (now returns dict with metadata)
-            prompt_result = self.create_enhanced_prompt(user_question, papers, conversation_history)
-            prompt = prompt_result['prompt']
+            if use_structured:
+                # Use structured JSON approach
+                prompt = self.create_structured_prompt(user_question, papers, conversation_history)
+            else:
+                # Use ML-optimized prompt approach (default)
+                prompt_result = self.create_enhanced_prompt(user_question, papers, conversation_history)
+                prompt = prompt_result['prompt']
             
-            # Call Claude API
             message = self.client.messages.create(
                 model=self.model,
                 max_tokens=1500,
-                temperature=0.3,  # Lower temperature for more factual responses
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                temperature=0.3,
+                messages=[{"role": "user", "content": prompt}]
             )
             
             response_text = message.content[0].text
             
-            # Extract citations count for validation
-            citation_count = response_text.count("PMID:")
-            
-            return {
-                'text': response_text,
-                'success': True,
-                'citations_found': citation_count,
-                'tokens_used': {
-                    'input': message.usage.input_tokens,
-                    'output': message.usage.output_tokens
-                },
-                # NEW: Include ML metadata
-                'ml_complexity': prompt_result.get('complexity', 'unknown'),
-                'ml_confidence': prompt_result.get('confidence', 0.0),
-                'ml_optimized': prompt_result.get('ml_optimized', False)
-            }
-            
+            # Handle structured response if requested
+            if use_structured:
+                parsed = self.parse_structured_response(response_text, papers)
+                
+                if parsed['structured']:
+                    data = parsed['data']
+                    if not data.get('references'):
+                        data['references'] = self.build_references_from_papers(papers)
+                    
+                    return {
+                        'text': self.format_structured_as_text(data),
+                        'structured_data': data,
+                        'success': True,
+                        'tokens_used': {
+                            'input': message.usage.input_tokens,
+                            'output': message.usage.output_tokens
+                        }
+                    }
+                else:
+                    # Fallback to text
+                    return {
+                        'text': parsed['text'],
+                        'structured_data': {
+                            'headline': parsed['text'].split('.')[0] + '.' if parsed['text'] else '',
+                            'points': [],
+                            'takeaway': None,
+                            'references': self.build_references_from_papers(papers)
+                        },
+                        'success': True,
+                        'tokens_used': {
+                            'input': message.usage.input_tokens,
+                            'output': message.usage.output_tokens
+                        }
+                    }
+            else:
+                # Standard ML-optimized response
+                citation_count = response_text.count("PMID:")
+                
+                result = {
+                    'text': response_text,
+                    'success': True,
+                    'citations_found': citation_count,
+                    'tokens_used': {
+                        'input': message.usage.input_tokens,
+                        'output': message.usage.output_tokens
+                    }
+                }
+                
+                # Add ML metadata if available
+                if not use_structured and 'prompt_result' in locals():
+                    result['ml_complexity'] = prompt_result.get('complexity', 'unknown')
+                    result['ml_confidence'] = prompt_result.get('confidence', 0.0)
+                    result['ml_optimized'] = prompt_result.get('ml_optimized', False)
+                
+                return result
+                
         except Exception as e:
+            print(f"[Claude] Error: {e}")
             return {
                 'text': f"Error generating response: {str(e)}",
                 'success': False,
                 'error': str(e)
             }
     
+    def extract_academic_search_terms(self, user_question: str) -> List[str]:
+        """Use Claude to translate user question into academic search terms"""
+        try:
+            prompt = f"""Convert this fitness question into PubMed search terms.
+
+Question: {user_question}
+
+Provide 3-5 search queries, one per line:"""
+
+            message = self.client.messages.create(
+                model=self.model,
+                max_tokens=200,
+                temperature=0.2,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            
+            response = message.content[0].text.strip()
+            return [line.strip() for line in response.split('\n') if line.strip()][:5]
+            
+        except Exception as e:
+            print(f"Error extracting search terms: {e}")
+            return [user_question]
+    
     def validate_response(self, response: Dict) -> Dict:
-        """
-        Validate that the response meets quality criteria
-        """
-        if not response['success']:
-            return {'valid': False, 'issues': ['API error occurred']}
+        """Validate response quality"""
+        if not response.get('success'):
+            return {'valid': False, 'issues': ['API error']}
         
-        text = response['text']
         issues = []
         
-        # Check for citations
-        if response['citations_found'] < 1:
-            issues.append("No citations found in response")
+        # Check structured data if present
+        if response.get('structured_data'):
+            data = response['structured_data']
+            if not data.get('points') or len(data.get('points', [])) < 1:
+                issues.append("No points")
+            if not data.get('references'):
+                issues.append("No references")
+        else:
+            # Check text-based response
+            text = response.get('text', '')
+            
+            if response.get('citations_found', 0) < 1:
+                issues.append("No citations found in response")
+            
+            if "Reference" not in text and "PMID" not in text:
+                issues.append("No references section found")
+            
+            word_count = len(text.split())
+            if word_count < 150:
+                issues.append(f"Response too short: {word_count} words")
+            elif word_count > 400:
+                issues.append(f"Response too long: {word_count} words")
         
-        # Check for references section
-        if "Reference" not in text and "PMID" not in text:
-            issues.append("No references section found")
-        
-        # Check response length
-        word_count = len(text.split())
-        if word_count < 150:
-            issues.append(f"Response too short: {word_count} words")
-        elif word_count > 400:
-            issues.append(f"Response too long: {word_count} words")
-        
-        return {
-            'valid': len(issues) == 0,
-            'issues': issues,
-            'word_count': word_count,
-            'citations': response['citations_found']
-        }
+        return {'valid': len(issues) == 0, 'issues': issues}
     
     def get_ml_stats(self) -> Dict:
         """Get ML prompt selector statistics"""
@@ -249,13 +427,13 @@ Your evidence-based response:"""
             return self.prompt_selector.get_usage_statistics()
         return None
 
+
 # Test function
 def test_refined_claude():
-    """Test the refined Claude processor with ML optimization"""
+    """Test Claude processor with ML optimization"""
     
     processor = ClaudeProcessor()
     
-    # Load sample papers
     sample_papers = [
         {
             'pmid': '27102172',
@@ -268,7 +446,6 @@ def test_refined_claude():
         }
     ]
     
-    # Test with different complexity questions
     test_questions = [
         ("What is protein?", "simple"),
         ("How much protein should I eat per day?", "medium"),
@@ -297,7 +474,6 @@ def test_refined_claude():
         else:
             print(f"\n❌ Error: {response.get('error', 'Unknown')}")
     
-    # Show ML stats
     print(f"\n{'='*80}")
     print("ML Prompt Selection Statistics")
     print("-" * 80)
@@ -311,6 +487,7 @@ def test_refined_claude():
         print(f"Avg saved per query: {stats['avg_tokens_saved_per_query']:.1f}")
     else:
         print("ML optimization not enabled")
+
 
 if __name__ == "__main__":
     test_refined_claude()
