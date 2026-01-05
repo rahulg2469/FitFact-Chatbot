@@ -1,0 +1,27 @@
+================================================================================
+FitFact ML Complexity Classifier - Training Report
+Generated: 2026-01-04 10:53:58
+================================================================================
+
+DATASET SUMMARY
+--------------------------------------------------------------------------------
+Total examples: 91
+Training examples: 72
+Test examples: 19
+
+Complexity Distribution:
+  Medium: 38 (41.8%)
+  Simple: 30 (33.0%)
+  Complex: 23 (25.3%)
+
+================================================================================
+MODEL RESULTS
+--------------------------------------------------------------------------------
+
+RANDOM_FOREST
+Accuracy: 94.74%
+
+LOGISTIC_REGRESSION
+Accuracy: 100.00%
+
+Best Model: logistic_regression (100.00%)

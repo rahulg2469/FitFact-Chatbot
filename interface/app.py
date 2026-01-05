@@ -19,6 +19,8 @@ from keyword_extractor import FitnessKeywordExtractor
 from pubmed_query_optimizer import PubMedQueryOptimizer
 from src.etl.pubmed_fetcher import search_pubmed, fetch_paper_details
 from dotenv import load_dotenv
+from ml_optimizer.ml_data_collector import MLDataCollector
+from ml_optimizer.query_feature_extractor import QueryFeatureExtractor
 
 load_dotenv()
 
@@ -316,6 +318,16 @@ class FitFactPipeline:
         self.claude = ClaudeProcessor()
         self.keyword_extractor = FitnessKeywordExtractor()
         self.query_optimizer = PubMedQueryOptimizer()
+        # NEW: Initialize ML data collector
+        try:
+            if self.db and self.db.conn:
+                self.ml_collector = MLDataCollector(self.db.conn)
+                print("ML Data Collector initialized")
+            else:
+                self.ml_collector = None
+        except Exception as e:
+            print(f"ML Collector init failed: {e}")
+            self.ml_collector = None
     
     def process_query(self, user_query: str, conversation_history: list = None) -> dict:
         """Process user query through the pipeline with conversation context"""
@@ -461,6 +473,59 @@ class FitFactPipeline:
                 if paper_ids:
                     self.cache.store_in_cache(user_query, claude_response['text'], paper_ids)
                     print(f"✅ Response cached with {len(paper_ids)} papers!")
+                    
+                    # NEW: Collect ML features for this query
+                    if self.ml_collector:
+                        try:
+                            # Get the query_id from database
+                            self.db.cursor.execute("""
+                                SELECT query_id FROM user_queries 
+                                WHERE query_text = %s 
+                                ORDER BY timestamp DESC LIMIT 1
+                            """, (user_query,))
+                            result = self.db.cursor.fetchone()
+                            
+                            if result:
+                                query_id = result['query_id']
+                                
+                                # Collect features
+                                feature_id = self.ml_collector.collect_query_features(query_id, user_query)
+                                print(f"✅ ML features collected (feature_id: {feature_id})")
+                                
+                                # Record performance (optional but recommended)
+                                performance_data = {
+                                    'input_tokens': claude_response.get('tokens_used', {}).get('input', 0),
+                                    'output_tokens': claude_response.get('tokens_used', {}).get('output', 0),
+                                    'total_tokens': sum(claude_response.get('tokens_used', {}).values()) if claude_response.get('tokens_used') else 0,
+                                    'citation_count': claude_response.get('citations_found', 0),
+                                    'response_length_chars': len(claude_response['text']),
+                                    'response_length_words': len(claude_response['text'].split()),
+                                    'total_response_time_ms': int(metrics.get('response_time', 0) * 1000),
+                                    'claude_api_time_ms': 0  # Can add if you track this
+                                }
+                                
+                                # Get response_id from cache
+                                self.db.cursor.execute("""
+                                    SELECT response_id FROM cached_responses 
+                                    WHERE query_id = %s 
+                                    ORDER BY timestamp DESC LIMIT 1
+                                """, (query_id,))
+                                response_result = self.db.cursor.fetchone()
+                                
+                                if response_result:
+                                    response_id = response_result['response_id']
+                                    perf_id = self.ml_collector.record_query_performance(
+                                        query_id=query_id,
+                                        response_id=response_id,
+                                        experiment_id=1,  # Using baseline prompt
+                                        performance_data=performance_data
+                                    )
+                                    print(f"✅ Performance recorded (perf_id: {perf_id})")
+                        except Exception as ml_error:
+                            print(f"⚠️ ML collection failed (non-critical): {ml_error}")
+                            # Don't fail the query if ML collection fails
+                            pass
+                    
             except Exception as e:
                 print(f"⚠️ Cache storage failed: {e}")
         

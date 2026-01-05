@@ -1,6 +1,6 @@
 """
 Claude API Integration for FitFact
-Week 2 - Enhanced prompt engineering and response handling
+Phase 3 - ML-based prompt optimization integrated
 """
 
 import anthropic
@@ -12,13 +12,31 @@ from typing import List, Dict, Optional
 load_dotenv()
 
 class ClaudeProcessor:
-    """Enhanced Claude API processor for FitFact responses"""
+    """Enhanced Claude API processor with ML-based prompt optimization"""
     
     def __init__(self):
         self.client = anthropic.Anthropic(
             api_key=os.environ.get("ANTHROPIC_API_KEY")
         )
         self.model = "claude-3-5-haiku-20241022"
+        
+        # NEW: Initialize ML-based prompt selector
+        try:
+            import sys
+            # Add parent directory to path for imports
+            parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if parent_dir not in sys.path:
+                sys.path.insert(0, parent_dir)
+            
+            from ml_optimizer.prompt_selector import PromptSelector
+            self.prompt_selector = PromptSelector()
+            print("✅ ML Prompt Selector initialized")
+            self.ml_enabled = True
+        except Exception as e:
+            print(f"⚠️ Could not load ML Prompt Selector: {e}")
+            print("   Falling back to default prompts")
+            self.prompt_selector = None
+            self.ml_enabled = False
         
     def format_papers_for_prompt(self, papers: List[Dict]) -> str:
         """
@@ -66,13 +84,50 @@ Abstract: {abstract}
         
         return "\n---\n".join(formatted_papers)
     
-    def create_enhanced_prompt(self, user_question: str, papers: List[Dict]) -> str:
+    def create_enhanced_prompt(self, user_question: str, papers: List[Dict], 
+                              conversation_history: list = None) -> Dict:
         """
-        Create an enhanced prompt with better instructions and structure
+        Create prompt with ML-based complexity detection
+        Returns dict with prompt and metadata
         """
         formatted_papers = self.format_papers_for_prompt(papers)
         
-        prompt = f"""You are FitFact, an AI fitness advisor that ONLY provides evidence-based responses using peer-reviewed research.
+        # Build conversation context
+        context_section = ""
+        if conversation_history and len(conversation_history) > 1:
+            recent_messages = conversation_history[-10:]
+            context_section = "\nCONVERSATION HISTORY:\n"
+            for msg in recent_messages[:-1]:
+                role = "User" if msg['role'] == 'user' else 'FitFact'
+                content = msg['content']
+                if msg['role'] == 'assistant' and len(content) > 150:
+                    content = content[:150] + "..."
+                context_section += f"{role}: {content}\n"
+            context_section += "\n"
+        
+        # NEW: Use ML prompt selector if available
+        if self.ml_enabled and self.prompt_selector:
+            result = self.prompt_selector.select_prompt(
+                query=user_question,
+                context_section=context_section,
+                formatted_papers=formatted_papers
+            )
+            
+            # Log the selection for monitoring
+            print(f"🤖 ML Prompt Selected: {result['complexity'].upper()} "
+                  f"(confidence: {result['confidence']:.1%}, "
+                  f"~{result['estimated_tokens']} tokens)")
+            
+            return {
+                'prompt': result['prompt'],
+                'complexity': result['complexity'],
+                'confidence': result['confidence'],
+                'ml_optimized': True
+            }
+        
+        # FALLBACK: Use default medium-complexity prompt if ML not available
+        else:
+            prompt = f"""You are FitFact, an AI fitness advisor that ONLY provides evidence-based responses using peer-reviewed research.
 
 STRICT REQUIREMENTS:
 1. Answer ONLY based on the provided research papers below
@@ -82,6 +137,7 @@ STRICT REQUIREMENTS:
 5. Highlight any conflicting findings between studies
 6. Keep response between 200-300 words
 7. Use clear, accessible language
+8. Use numbered or bulleted lists when presenting multiple points for clarity
 
 RESEARCH PAPERS:
 {formatted_papers}
@@ -98,16 +154,23 @@ References:
 List all cited papers in format: Author et al. (Year). Title. PMID: ######
 
 Your evidence-based response:"""
-        
-        return prompt
+            
+            return {
+                'prompt': prompt,
+                'complexity': 'medium',
+                'confidence': 1.0,
+                'ml_optimized': False
+            }
     
-    def generate_response(self, papers: List[Dict], user_question: str) -> Dict:
+    def generate_response(self, papers: List[Dict], user_question: str, 
+                         conversation_history: list = None) -> Dict:
         """
-        Generate a response using Claude API with enhanced error handling
+        Generate a response using Claude API with ML-optimized prompts
         """
         try:
-            # Create the enhanced prompt
-            prompt = self.create_enhanced_prompt(user_question, papers)
+            # Create the prompt (now returns dict with metadata)
+            prompt_result = self.create_enhanced_prompt(user_question, papers, conversation_history)
+            prompt = prompt_result['prompt']
             
             # Call Claude API
             message = self.client.messages.create(
@@ -134,7 +197,11 @@ Your evidence-based response:"""
                 'tokens_used': {
                     'input': message.usage.input_tokens,
                     'output': message.usage.output_tokens
-                }
+                },
+                # NEW: Include ML metadata
+                'ml_complexity': prompt_result.get('complexity', 'unknown'),
+                'ml_confidence': prompt_result.get('confidence', 0.0),
+                'ml_optimized': prompt_result.get('ml_optimized', False)
             }
             
         except Exception as e:
@@ -175,64 +242,75 @@ Your evidence-based response:"""
             'word_count': word_count,
             'citations': response['citations_found']
         }
+    
+    def get_ml_stats(self) -> Dict:
+        """Get ML prompt selector statistics"""
+        if self.ml_enabled and self.prompt_selector:
+            return self.prompt_selector.get_usage_statistics()
+        return None
 
 # Test function
 def test_refined_claude():
-    """Test the refined Claude processor with sample data"""
+    """Test the refined Claude processor with ML optimization"""
     
     processor = ClaudeProcessor()
     
-    # Load sample papers from pubmed_papers_sample.json if it exists
-    sample_papers = []
-    if os.path.exists('data/pubmed_papers_sample.json'):
-        with open('data/pubmed_papers_sample.json', 'r') as f:
-            sample_papers = json.load(f)[:3]  # Use first 3 papers
-    else:
-        # Use mock data if file doesn't exist
-        sample_papers = [
-            {
-                'pmid': '27102172',
-                'title': 'Effects of Resistance Training Frequency on Muscle Hypertrophy',
-                'abstract': 'This systematic review examined training frequency effects...',
-                'authors': ['Schoenfeld BJ', 'Ogborn D', 'Krieger JW'],
-                'publication_date': '2016-10-01',
-                'journal': 'Sports Medicine',
-                'keywords': ['Resistance Training', 'Muscle Hypertrophy']
-            }
-        ]
+    # Load sample papers
+    sample_papers = [
+        {
+            'pmid': '27102172',
+            'title': 'Effects of Resistance Training Frequency on Muscle Hypertrophy',
+            'abstract': 'This systematic review examined training frequency effects on muscle hypertrophy in trained individuals. Results indicated that training each muscle group 2-3 times per week produced superior hypertrophy outcomes compared to once-weekly training.',
+            'authors': ['Schoenfeld BJ', 'Ogborn D', 'Krieger JW'],
+            'publication_date': '2016-10-01',
+            'journal': 'Sports Medicine',
+            'keywords': ['Resistance Training', 'Muscle Hypertrophy']
+        }
+    ]
     
-    test_question = "How often should I train each muscle group for optimal muscle growth?"
+    # Test with different complexity questions
+    test_questions = [
+        ("What is protein?", "simple"),
+        ("How much protein should I eat per day?", "medium"),
+        ("Compare the effects of whey versus casein protein on muscle protein synthesis in resistance-trained individuals", "complex")
+    ]
     
-    print("🧪 Testing Claude Processor")
-    print("=" * 60)
-    print(f"Question: {test_question}")
-    print(f"Papers loaded: {len(sample_papers)}")
-    print("=" * 60)
+    print("🧪 Testing Claude Processor with ML Optimization")
+    print("=" * 80)
     
-    # Generate response
-    print("\n🤖 Generating response...")
-    response = processor.generate_response(sample_papers, test_question)
-    
-    if response['success']:
-        print("\n✅ Response generated successfully!")
-        print("-" * 60)
-        print(response['text'])
-        print("-" * 60)
+    for question, expected_complexity in test_questions:
+        print(f"\n{'='*80}")
+        print(f"Question: {question}")
+        print(f"Expected Complexity: {expected_complexity.upper()}")
+        print("-" * 80)
         
-        # Validate response
-        validation = processor.validate_response(response)
-        print(f"\n📊 Validation Results:")
-        print(f"  Valid: {validation['valid']}")
-        print(f"  Word count: {validation['word_count']}")
-        print(f"  Citations: {validation['citations']}")
-        if validation['issues']:
-            print(f"  Issues: {', '.join(validation['issues'])}")
+        response = processor.generate_response(sample_papers, question)
         
-        print(f"\n💰 Token Usage:")
-        print(f"  Input: {response['tokens_used']['input']}")
-        print(f"  Output: {response['tokens_used']['output']}")
+        if response['success']:
+            print(f"\n✅ Response generated!")
+            print(f"   ML Complexity: {response.get('ml_complexity', 'N/A').upper()}")
+            print(f"   ML Confidence: {response.get('ml_confidence', 0):.1%}")
+            print(f"   ML Optimized: {response.get('ml_optimized', False)}")
+            print(f"   Input tokens: {response['tokens_used']['input']}")
+            print(f"   Output tokens: {response['tokens_used']['output']}")
+            print(f"   Total tokens: {sum(response['tokens_used'].values())}")
+        else:
+            print(f"\n❌ Error: {response.get('error', 'Unknown')}")
+    
+    # Show ML stats
+    print(f"\n{'='*80}")
+    print("ML Prompt Selection Statistics")
+    print("-" * 80)
+    stats = processor.get_ml_stats()
+    if stats:
+        print(f"Total queries: {stats['total']}")
+        print(f"  Simple: {stats['simple']} ({stats['percentages']['simple']:.1f}%)")
+        print(f"  Medium: {stats['medium']} ({stats['percentages']['medium']:.1f}%)")
+        print(f"  Complex: {stats['complex']} ({stats['percentages']['complex']:.1f}%)")
+        print(f"\nEstimated tokens saved: {stats['estimated_tokens_saved']}")
+        print(f"Avg saved per query: {stats['avg_tokens_saved_per_query']:.1f}")
     else:
-        print(f"\n❌ Error: {response['error']}")
+        print("ML optimization not enabled")
 
 if __name__ == "__main__":
     test_refined_claude()
