@@ -5,7 +5,7 @@ FastAPI server connecting React frontend to PostgreSQL database
 
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional, List, Dict, Any
 import os
 import sys
@@ -23,12 +23,14 @@ sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'database_files'))
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'interface'))
 sys.path.insert(0, os.path.join(PROJECT_ROOT, 'src', 'etl'))
+sys.path.insert(0, os.path.join(PROJECT_ROOT, 'user_auth'))
 
 from dotenv import load_dotenv
 load_dotenv(os.path.join(PROJECT_ROOT, '.env'))
 
 from user_auth.user_manager import UserManager
 from user_auth.session_manager import SessionManager
+from user_auth.email_auth import EmailAuthManager
 
 app = FastAPI(title="FitFact API", version="1.0.0")
 
@@ -44,6 +46,7 @@ app.add_middleware(
 # Initialize managers
 user_mgr = UserManager()
 session_mgr = SessionManager()
+email_auth = EmailAuthManager()
 
 # ==================== MODELS ====================
 
@@ -51,34 +54,33 @@ class GoogleAuthRequest(BaseModel):
     credential: str
     user_info: Optional[dict] = None
 
+class EmailRegisterRequest(BaseModel):
+    email: str
+    password: str
+    display_name: Optional[str] = None
+
+class EmailLoginRequest(BaseModel):
+    email: str
+    password: str
+
+class VerifyEmailRequest(BaseModel):
+    email: Optional[str] = None
+    code: Optional[str] = None
+    token: Optional[str] = None
+
+class ResendVerificationRequest(BaseModel):
+    email: str
+
+class PasswordResetRequest(BaseModel):
+    email: str
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
+    new_password: str
+
 class ChatRequest(BaseModel):
     message: str
     conversation_history: Optional[List[dict]] = []
-
-class ReferenceModel(BaseModel):
-    num: int
-    author: str
-    year: str
-    title: str
-    journal: str
-    pmid: str
-
-class PointModel(BaseModel):
-    title: str
-    content: str
-
-class StructuredDataModel(BaseModel):
-    headline: str
-    points: List[PointModel]
-    takeaway: Optional[str] = None
-    references: List[ReferenceModel]
-
-class ChatResponse(BaseModel):
-    response: str  # Plain text for backward compatibility
-    structured: Optional[StructuredDataModel] = None  # New structured format
-    papers_used: int
-    response_time: float
-    cached: bool
 
 class PreferencesUpdate(BaseModel):
     fitness_goals: Optional[List[str]] = None
@@ -109,7 +111,7 @@ async def require_auth(authorization: str = Header(...)) -> dict:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user
 
-# ==================== AUTH ENDPOINTS ====================
+# ==================== GOOGLE AUTH ====================
 
 @app.post("/api/auth/google")
 async def google_auth(request: GoogleAuthRequest):
@@ -128,6 +130,7 @@ async def google_auth(request: GoogleAuthRequest):
         session = session_mgr.create_session(user.user_id)
         
         return {
+            "success": True,
             "token": session.session_token,
             "user": {
                 "user_id": user.user_id,
@@ -139,11 +142,110 @@ async def google_auth(request: GoogleAuthRequest):
             }
         }
     except Exception as e:
-        print(f"Auth error: {e}")
+        print(f"Google auth error: {e}")
         raise HTTPException(status_code=401, detail=str(e))
+
+# ==================== EMAIL AUTH ====================
+
+@app.post("/api/auth/register")
+async def register(request: EmailRegisterRequest):
+    """Register new user with email/password"""
+    result = email_auth.register_user(
+        email=request.email,
+        password=request.password,
+        display_name=request.display_name
+    )
+    
+    if not result['success']:
+        raise HTTPException(status_code=400, detail=result['message'])
+    
+    return {
+        "success": True,
+        "message": result['message'],
+        "needs_verification": True
+    }
+
+@app.post("/api/auth/login")
+async def login(request: EmailLoginRequest):
+    """Login with email/password"""
+    result = email_auth.login(request.email, request.password)
+    
+    if not result['success']:
+        status_code = 401
+        if result.get('needs_verification'):
+            status_code = 403
+        raise HTTPException(status_code=status_code, detail=result['message'])
+    
+    # Create session
+    session = session_mgr.create_session(result['user']['user_id'])
+    
+    return {
+        "success": True,
+        "token": session.session_token,
+        "user": result['user']
+    }
+
+@app.post("/api/auth/verify")
+async def verify_email(request: VerifyEmailRequest):
+    """Verify email with token (link) or code"""
+    if request.token:
+        result = email_auth.verify_email_by_token(request.token)
+    elif request.email and request.code:
+        result = email_auth.verify_email_by_code(request.email, request.code)
+    else:
+        raise HTTPException(status_code=400, detail="Provide either token or email+code")
+    
+    if not result['success']:
+        raise HTTPException(status_code=400, detail=result['message'])
+    
+    # Auto-login after verification
+    user = user_mgr.get_user_by_id(result['user_id'])
+    session = session_mgr.create_session(user.user_id)
+    
+    return {
+        "success": True,
+        "message": result['message'],
+        "token": session.session_token,
+        "user": {
+            "user_id": user.user_id,
+            "email": user.email,
+            "display_name": user.display_name,
+            "profile_picture_url": user.profile_picture_url,
+            "account_type": user.account_type,
+        }
+    }
+
+@app.post("/api/auth/resend-verification")
+async def resend_verification(request: ResendVerificationRequest):
+    """Resend verification email"""
+    result = email_auth.resend_verification(request.email)
+    
+    if not result['success']:
+        raise HTTPException(status_code=400, detail=result['message'])
+    
+    return {"success": True, "message": result['message']}
+
+@app.post("/api/auth/forgot-password")
+async def forgot_password(request: PasswordResetRequest):
+    """Request password reset email"""
+    result = email_auth.request_password_reset(request.email)
+    
+    # Always return success to not reveal if email exists
+    return {"success": True, "message": result['message']}
+
+@app.post("/api/auth/reset-password")
+async def reset_password(request: PasswordResetConfirmRequest):
+    """Reset password with token"""
+    result = email_auth.reset_password(request.token, request.new_password)
+    
+    if not result['success']:
+        raise HTTPException(status_code=400, detail=result['message'])
+    
+    return {"success": True, "message": result['message']}
 
 @app.post("/api/auth/logout")
 async def logout(user: dict = Depends(require_auth), authorization: str = Header(...)):
+    """Log out current user"""
     token = authorization.replace("Bearer ", "")
     session_mgr.invalidate_session(token)
     user_mgr.log_logout(user['user_id'])
@@ -151,6 +253,7 @@ async def logout(user: dict = Depends(require_auth), authorization: str = Header
 
 @app.get("/api/auth/me")
 async def get_me(user: dict = Depends(require_auth)):
+    """Get current user info"""
     return user
 
 # ==================== CHAT ENDPOINTS ====================
@@ -158,7 +261,7 @@ async def get_me(user: dict = Depends(require_auth)):
 def format_papers_as_references(papers: List[dict]) -> List[dict]:
     """Convert papers to reference format"""
     references = []
-    for i, paper in enumerate(papers, 1):
+    for i, paper in enumerate(papers[:6], 1):
         authors = paper.get('authors', [])
         if isinstance(authors, list):
             author_str = authors[0].split()[0] if authors else "Unknown"
@@ -250,21 +353,20 @@ async def chat(request: ChatRequest, user: Optional[dict] = Depends(get_current_
                 "cached": False
             }
         
-        # Generate response with Claude
+        # Generate response with Claude - use structured output for consistent formatting
         claude_response = claude.generate_response(
             papers[:10], 
             user_query, 
-            request.conversation_history
+            request.conversation_history,
+            use_structured=True  # Request JSON structured output
         )
         
         response_text = claude_response.get('text', 'Error generating response')
         structured_data = claude_response.get('structured_data')
         response_time = time.time() - start_time
         
-        # If we got structured data from Claude, use it
-        # Otherwise, build structured data from papers
+        # Build structured data if not from Claude
         if not structured_data:
-            # Build basic structured response from the text
             references = format_papers_as_references(papers[:6])
             structured_data = {
                 "headline": response_text.split('.')[0] + '.' if response_text else "",
@@ -273,10 +375,9 @@ async def chat(request: ChatRequest, user: Optional[dict] = Depends(get_current_
                 "references": references
             }
         else:
-            # Ensure references have correct PMIDs from actual papers
+            # Ensure references have correct PMIDs
             if structured_data.get('references'):
                 for ref in structured_data['references']:
-                    # Find matching paper by author/year
                     for paper in papers:
                         pub_date = paper.get('publication_date', '')
                         year = pub_date.split('-')[0] if '-' in pub_date else pub_date

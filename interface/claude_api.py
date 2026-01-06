@@ -153,38 +153,58 @@ Your evidence-based response:"""
     
     def create_structured_prompt(self, user_question: str, papers: List[Dict], 
                                 conversation_history: list = None) -> str:
-        """Create prompt that requests structured JSON output (alternative approach)"""
+        """Create prompt that requests structured JSON output"""
         formatted_papers = self.format_papers_for_prompt(papers)
+        
+        # Build reference list from papers for the prompt
+        ref_examples = []
+        for i, paper in enumerate(papers[:5], 1):
+            authors = paper.get('authors', [])
+            if isinstance(authors, list) and authors:
+                author = authors[0].split()[0] if authors[0] else "Unknown"
+            else:
+                author = str(authors).split()[0] if authors else "Unknown"
+            pub_date = paper.get('publication_date', '')
+            year = pub_date.split('-')[0] if '-' in pub_date else pub_date or "2024"
+            ref_examples.append(f'{{"num":{i},"author":"{author}","year":"{year}","title":"{paper.get("title", "Title")[:50]}","journal":"{paper.get("journal", "Journal")}","pmid":"{paper.get("pmid", "")}"}}')
         
         context_section = ""
         if conversation_history and len(conversation_history) > 1:
-            recent_messages = conversation_history[-6:]
-            context_section = "\nPREVIOUS CONVERSATION:\n"
+            recent_messages = conversation_history[-4:]
+            context_section = "Previous conversation context: "
             for msg in recent_messages[:-1]:
-                role = "User" if msg['role'] == 'user' else 'FitFact'
-                content = msg['content'][:200] + "..." if len(msg.get('content', '')) > 200 else msg.get('content', '')
-                context_section += f"{role}: {content}\n"
+                role = "User" if msg['role'] == 'user' else 'Assistant'
+                content = msg['content'][:100] + "..." if len(msg.get('content', '')) > 100 else msg.get('content', '')
+                context_section += f"{role}: {content} | "
         
-        prompt = f"""You are FitFact, an evidence-based fitness advisor.
+        prompt = f"""You are FitFact, a fitness advisor. Answer based ONLY on the research papers provided.
 {context_section}
-RESEARCH:
+
+RESEARCH PAPERS:
 {formatted_papers}
 
-QUESTION: {user_question}
+USER QUESTION: {user_question}
 
-You MUST respond with ONLY a JSON object (no markdown, no backticks, no extra text).
+Respond with a JSON object. Start your response with {{ and end with }}. No markdown, no backticks, no explanation before or after.
 
-Format:
-{{"headline":"Direct 1-2 sentence answer","points":[{{"title":"Topic Name","content":"Details with (Author, Year) citations"}}],"takeaway":"Brief action summary","references":[{{"num":1,"author":"LastName","year":"2024","title":"Paper title","journal":"Journal","pmid":"12345"}}]}}
+Required JSON structure:
+{{
+  "headline": "A clear 1-2 sentence direct answer to the question",
+  "points": [
+    {{"title": "Short Topic Name", "content": "Detailed explanation with (Author et al., Year) citations. Include specific numbers/recommendations."}},
+    {{"title": "Another Topic", "content": "More details with citations."}}
+  ],
+  "takeaway": "One practical actionable recommendation",
+  "references": [
+    {ref_examples[0] if ref_examples else '{{"num":1,"author":"Author","year":"2024","title":"Title","journal":"Journal","pmid":"12345"}}'}
+  ]
+}}
 
-RULES:
-- 3-5 points with specific actionable advice
-- Include numbers and recommendations  
-- Only cite papers you reference
-- Keep titles short: "Protein Timing", "Rest Days"
-- Citations format: (Author et al., Year)
-
-JSON response:"""
+IMPORTANT:
+- Include 3-5 points with specific advice
+- Every claim needs a citation: (Author et al., Year)
+- References must include actual PMIDs from the papers above
+- Start response with {{ - no other text before it"""
         
         return prompt
     
@@ -288,6 +308,7 @@ JSON response:"""
             if use_structured:
                 # Use structured JSON approach
                 prompt = self.create_structured_prompt(user_question, papers, conversation_history)
+                print(f"[Claude] Using structured prompt for: {user_question[:50]}...")
             else:
                 # Use ML-optimized prompt approach (default)
                 prompt_result = self.create_enhanced_prompt(user_question, papers, conversation_history)
@@ -296,17 +317,19 @@ JSON response:"""
             message = self.client.messages.create(
                 model=self.model,
                 max_tokens=1500,
-                temperature=0.3,
+                temperature=0.2,  # Lower temperature for more consistent JSON
                 messages=[{"role": "user", "content": prompt}]
             )
             
             response_text = message.content[0].text
+            print(f"[Claude] Raw response (first 200 chars): {response_text[:200]}...")
             
             # Handle structured response if requested
             if use_structured:
                 parsed = self.parse_structured_response(response_text, papers)
                 
                 if parsed['structured']:
+                    print(f"[Claude] ✅ Successfully parsed structured JSON")
                     data = parsed['data']
                     if not data.get('references'):
                         data['references'] = self.build_references_from_papers(papers)
@@ -321,12 +344,38 @@ JSON response:"""
                         }
                     }
                 else:
-                    # Fallback to text
+                    # Fallback - build structured data from text response
+                    print(f"[Claude] ⚠️ JSON parse failed, building structured fallback")
+                    text = parsed['text']
+                    
+                    # Extract first sentence as headline
+                    sentences = text.split('. ')
+                    headline = sentences[0] + '.' if sentences else text[:100]
+                    
+                    # Try to extract numbered points
+                    points = []
+                    import re
+                    point_matches = re.findall(r'(\d+)\.\s*\*?\*?([^:*]+)\*?\*?:\s*([^\d]+?)(?=\d+\.|$)', text, re.DOTALL)
+                    if point_matches:
+                        for num, title, content in point_matches[:5]:
+                            points.append({
+                                'title': title.strip(),
+                                'content': content.strip().replace('\n', ' ')
+                            })
+                    else:
+                        # If no numbered points, create one point with the content
+                        remaining = '. '.join(sentences[1:]) if len(sentences) > 1 else ''
+                        if remaining:
+                            points.append({
+                                'title': 'Key Information',
+                                'content': remaining[:500]
+                            })
+                    
                     return {
-                        'text': parsed['text'],
+                        'text': text,
                         'structured_data': {
-                            'headline': parsed['text'].split('.')[0] + '.' if parsed['text'] else '',
-                            'points': [],
+                            'headline': headline,
+                            'points': points,
                             'takeaway': None,
                             'references': self.build_references_from_papers(papers)
                         },
@@ -360,6 +409,8 @@ JSON response:"""
                 
         except Exception as e:
             print(f"[Claude] Error: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 'text': f"Error generating response: {str(e)}",
                 'success': False,

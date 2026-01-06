@@ -1,0 +1,6 @@
+# FitFact Vercel API Requirements
+anthropic>=0.18.0
+biopython>=1.83
+firebase-admin>=6.4.0
+python-dotenv>=1.0.0
+nltk>=3.8.1
